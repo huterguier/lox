@@ -107,10 +107,6 @@ def compute_metrics(x):
 result = jax.wandb.spool(compute_metrics)(5)
 ```
 
-## License
-
-LOX is released under the [MIT License](LICENSE).
-
 ## Contributing
 
 Contributions are welcome! Please refer to our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
