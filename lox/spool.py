@@ -13,7 +13,6 @@ import functools
 def spool(fun: Callable) -> Callable:
   @functools.wraps(fun)
   def wrapped(*args, **kwargs):
-    jax.make_jaxpr(fun)
     closed_jaxpr, out_shape = make_spooled_jaxpr(fun, return_shape=True)(*args, **kwargs)
     out_structure = jax.tree.structure(out_shape)
     out_flat = jax.core.eval_jaxpr(closed_jaxpr.jaxpr, closed_jaxpr.literals, *args)
@@ -38,7 +37,6 @@ def make_spooled_jaxpr(
         return_shape=True,
         abstracted_axes=abstracted_axes,
     )(*args, **kwargs)
-    print(closed_jaxpr)
     logs_shape, log_shapes = spool_jaxpr(closed_jaxpr.jaxpr)
     if return_shape:
       return closed_jaxpr, (out_shape, logs_shape)
@@ -81,8 +79,6 @@ def spool_jaxpr(jaxpr: Jaxpr) -> tuple[dict[str, Any], dict[str, Any]]:
       eqn_logs, eqn_log_shapes = spool_scan_p(eqn)
     elif eqn.primitive == jax.lax.cond_p:
       eqn_logs, eqn_log_shapes = spool_cond_p(eqn)
-    elif eqn.primitive == jax.lax.switch:
-      eqn_logs, eqn_log_shapes = spool_switch_p(eqn)
     elif eqn.primitive == jax.lax.while_p:
       eqn_logs, eqn_log_shapes = spool_while_p(eqn)
     elif eqn.primitive.name == "pjit":
@@ -143,12 +139,8 @@ def spool_scan_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def spool_cond_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
-  return spool_switch_p(eqn)
-
-
-def spool_switch_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
   """
-  Spools the branches of a switch_p primitive. All branches must have the same log structure and shapes.
+  Spools the branches of a cond_p primitive. All branches must have the same log structure and shapes.
 
   Args:
       eqn (JaxprEqn): The equation representing the switch operation.
