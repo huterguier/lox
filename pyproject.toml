@@ -27,8 +27,7 @@ neptune = [
 [project.urls]
 Homepage = "https://github.com/huterguier/lox"
 
-[project.classifiers]
-# Optional, but good to include for PyPI
+[project]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Operating System :: OS Independent",
