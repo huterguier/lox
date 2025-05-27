@@ -30,6 +30,7 @@ Homepage = "https://github.com/huterguier/lox"
 [project.classifiers]
 # Optional, but good to include for PyPI
 classifiers = [
-  "Programming Language :: Python :: 3"
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
   "License :: OSI Approved :: Apache Software License"
 ]
