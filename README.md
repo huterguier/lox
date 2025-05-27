@@ -9,31 +9,24 @@ LOX is a lightweight and flexible logging library designed for JAX applications.
 ## Features
 
 ### General Logging Utilities
-- **`lox.log`**  
-  Standard logging functionality for non-jitted contexts. Use it to print messages, debug data, or track custom events.
-
-### Logging in Jitted Functions
-- Leverages JAX's debugging tools (`jax.debug.print` and `jax.debug.callback`) to enable logging inside jitted functions.  
-  **Note:** This method may introduce performance overhead.
+- **`lox.log(data, step=None)`**  
+  Standard logging functionality. Deault behavior is logging the arguments to the console.
+  Leverages JAX's `jax.debug.callback` to enable logging inside jitted functions.
 
 ### Function Spooling
-- **`lox.spool`**  
+- **`lox.spool(f)`**  
   Wraps a function so that it returns both its normal output and a pytree of the logs generated during execution.
 
-### Weights & Biases (wandb) Integration
-- **`lox.wandb.log`**  
-  Integrates directly with wandb, enabling logging within jitted functions and across JAX primitives to facilitate streamlined experiment tracking.
-
-### Automatic Wandb Logging with Spooling
-- **`jax.wandb.spool`**  
-  Automatically wraps a function to log computed values to wandb after execution, combining the benefits of function spooling with seamless wandb integration.
+### Disabling Logging
+- **`lox.nolog(f)`**
+  Wraps a function such that all logging is disabled entirely.
 
 ## Installation
 
-Install LOX via pip:
+LOX is not yet on PyPI but you can install it directly from Github.
 
 ```bash
-pip install lox
+pip install git+https://github.com/huterguier/lox
 ```
 
 ## Quick Start
@@ -43,14 +36,11 @@ pip install lox
 ```python
 import lox
 
-# Standard logging
-lox.log("Starting computation...")
-
-def compute(x):
-    lox.log("Computing square for {}", x)
+def f(x):
+    lox.log({"x": x})
     return x * x
 
-result = compute(3)
+y = f(3) #{"x": 3}
 ```
 
 ### Logging in Jitted Functions
@@ -60,12 +50,11 @@ import jax
 import lox
 
 @jax.jit
-def jitted_compute(x):
-    # Logging via JAX debugging tools
-    lox.log("Computing square of {}", x)
+def f(x):
+    lox.log({"x": x})
     return x * x
 
-result = jitted_compute(3)
+y = f(3) #{"x": 3}
 ```
 
 ### Function Spooling Example
@@ -73,48 +62,11 @@ result = jitted_compute(3)
 ```python
 import lox
 
-def multiply_and_log(x, y):
-    lox.log("Multiplying {} and {}", x, y)
+def f(x, y):
+    lox.log({"x": x, "y": y})
     return x * y
 
-# Wrap the function to capture logs
-result, logs = lox.spool(multiply_and_log)(3, 4)
-print("Result:", result)
-print("Logs:", logs)
+z, logs = lox.spool(f)(3, 4)
+print("f(x, y)", z) #12
+print("Logs:", logs) #{"x": 3, "y": 4}
 ```
-
-### Wandb Integration Example
-
-```python
-import lox
-
-# Log metrics to wandb
-lox.wandb.log({"loss": 0.05, "accuracy": 0.98})
-```
-
-### Automatic Wandb Logging with Spooling
-
-```python
-import jax
-import lox
-
-def compute_metrics(x):
-    result = x * x
-    lox.log("Computed metric: {}", result)
-    return result
-
-# Wrap the function to automatically log to wandb
-result = jax.wandb.spool(compute_metrics)(5)
-```
-
-## Contributing
-
-Contributions are welcome! Please refer to our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## Support
-
-For support or inquiries, please open an issue on the repository or contact the maintainers directly.
-
---- 
-
-This README outlines the core functionality of LOX and should help you quickly integrate logging into your JAX workflows.
