@@ -4,6 +4,7 @@ from jax.core import ShapedArray, AxisName
 from jax.extend.core import Var, ClosedJaxpr, Jaxpr, JaxprEqn
 from jax._src import source_info_util
 from lox.primitive import lox_p
+import functools
 
 
 def nolog(fun: Callable) -> Callable:
@@ -34,6 +35,8 @@ def nolog_jaxpr(jaxpr: Jaxpr) -> None:
       nolog_jaxpr(eqn.params['cond_jaxpr'])
     elif eqn.primitive.name == "pjit":
       nolog_jaxpr(eqn.params['jaxpr'])
+    elif eqn.primitive == jax.extend.core.primitives.call_p:
+      nolog_jaxpr(eqn.params['call_jaxpr'])
   
   for eqn in log_eqns:
     jaxpr.eqns.remove(eqn)
