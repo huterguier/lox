@@ -15,6 +15,11 @@ authors = [
 dependencies = [
   "jax>=0.4.25"
 ]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+  "License :: OSI Approved :: Apache Software License"
+]
 
 [pyproject.optional-dependencies]
 wandb = [
@@ -26,10 +31,3 @@ neptune = [
 
 [project.urls]
 Homepage = "https://github.com/huterguier/lox"
-
-[project]
-classifiers = [
-  "Programming Language :: Python :: 3",
-  "Operating System :: OS Independent",
-  "License :: OSI Approved :: Apache Software License"
-]
