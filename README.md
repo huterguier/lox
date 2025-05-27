@@ -4,26 +4,26 @@
 
 # Accelerated logging in JAX
 
-LOX is a lightweight and flexible logging library designed for JAX applications. It provides a simple API for standard logging, debugging within jitted functions, function spooling, and seamless Weights & Biases (wandb) integration.
+Lox is a lightweight and flexible logging library designed for JAX applications. It provides a simple API for standard logging, debugging within jitted functions, function spooling, and seamless Weights & Biases (wandb) integration.
 
 ## Features
 
 ### General Logging Utilities
-- **`lox.log(data, step=None)`**  
+- **`lox.log`**  
   Standard logging functionality. Deault behavior is logging the arguments to the console.
   Leverages JAX's `jax.debug.callback` to enable logging inside jitted functions.
 
 ### Function Spooling
-- **`lox.spool(f)`**  
+- **`lox.spool`**  
   Wraps a function so that it returns both its normal output and a pytree of the logs generated during execution.
 
 ### Disabling Logging
-- **`lox.nolog(f)`**
+- **`lox.nolog`**
   Wraps a function such that all logging is disabled entirely.
 
 ## Installation
 
-LOX is not yet on PyPI but you can install it directly from Github.
+Lox is not yet on PyPI but you can install it directly from Github.
 
 ```bash
 pip install git+https://github.com/huterguier/lox
