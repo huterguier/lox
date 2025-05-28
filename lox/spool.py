@@ -155,6 +155,8 @@ def spool_jaxpr(jaxpr: Jaxpr) -> tuple[dict[str, Any], dict[str, Any]]:
         ctx=jaxpr.eqns[0].ctx,
     ))
     jaxpr.outvars.extend(combine_jaxpr.jaxpr.outvars)
+  else:
+    logs_shape = {}
 
   return logs_shape, log_shapes
 
