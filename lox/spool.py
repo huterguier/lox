@@ -142,20 +142,20 @@ def spool_jaxpr(jaxpr: Jaxpr) -> tuple[dict[str, Any], dict[str, Any]]:
         logs[k] = jnp.concatenate(reshaped_vals, axis=0)
     return logs
 
-  logs_avals = jax.tree.map(lambda v: v.aval, logs)
-  combine_jaxpr, logs_shape = jax.make_jaxpr(combine, return_shape=True)(logs_avals)
+  if logs:
+    logs_avals = jax.tree.map(lambda v: v.aval, logs)
+    combine_jaxpr, logs_shape = jax.make_jaxpr(combine, return_shape=True)(logs_avals)
+    jaxpr.eqns.append(JaxprEqn(
+        primitive=jax.extend.core.primitives.call_p,
+        invars=jax.tree.leaves(logs),
+        outvars=combine_jaxpr.jaxpr.outvars,
+        params={"call_jaxpr": combine_jaxpr.jaxpr},
+        source_info=source_info_util.current(),
+        effects=(),
+        ctx=jaxpr.eqns[0].ctx,
+    ))
+    jaxpr.outvars.extend(combine_jaxpr.jaxpr.outvars)
 
-  jaxpr.eqns.append(JaxprEqn(
-      primitive=jax.extend.core.primitives.call_p,
-      invars=jax.tree.leaves(logs),
-      outvars=combine_jaxpr.jaxpr.outvars,
-      params={"call_jaxpr": combine_jaxpr.jaxpr},
-      source_info=source_info_util.current(),
-      effects=(),
-      ctx=jaxpr.eqns[0].ctx,
-  ))
-
-  jaxpr.outvars.extend(combine_jaxpr.jaxpr.outvars)
   return logs_shape, log_shapes
 
 
