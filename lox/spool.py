@@ -9,7 +9,7 @@ from typing import Any, Iterable, Sequence, Callable
 
 from jax.tree_util import PyTreeDef 
 from lox.primitive import lox_p
-from lox.nolog import nolog
+from lox.nolog import nolog_jaxpr
 
 from functools import wraps
 
@@ -30,7 +30,8 @@ def spool(fun: Callable, keep_logs=False) -> Callable:
     closed_jaxpr, out_shape = make_spooled_jaxpr(
       flatten(fun, structure),
       static_argnums=static_argnums, 
-      return_shape=True
+      return_shape=True,
+      keep_logs=keep_logs,
     )(*args_flat)
     dynamic_args_flat = tuple(arg for arg in args_flat if not is_hashable(arg))
     out_structure = jax.tree.structure(out_shape)
@@ -38,9 +39,6 @@ def spool(fun: Callable, keep_logs=False) -> Callable:
     out = jax.tree_util.tree_unflatten(out_structure, out_flat)
     return out
   return wrapped
-  if keep_logs:
-    return wrapped
-  return nolog(wrapped)
 
 
 def flatten(fun: Callable, structure: PyTreeDef) -> Callable:
@@ -66,6 +64,7 @@ def make_spooled_jaxpr(
     axis_env: Sequence[tuple[AxisName, int]] | None = None,
     return_shape: bool = False,
     abstracted_axes: Any | None = None,
+    keep_logs: bool = False,
 ) -> Callable[..., ClosedJaxpr | tuple[ClosedJaxpr, Any]]:
   
   def wrapped(*args, **kwargs):
@@ -77,6 +76,8 @@ def make_spooled_jaxpr(
         abstracted_axes=abstracted_axes,
     )(*args, **kwargs)
     logs_shape, log_shapes = spool_jaxpr(closed_jaxpr.jaxpr)
+    if not keep_logs:
+      nolog_jaxpr(closed_jaxpr.jaxpr)
     if return_shape:
       return closed_jaxpr, (out_shape, logs_shape)
     else:
