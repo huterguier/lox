@@ -10,15 +10,44 @@ The basic logging functionality alone, however, does not provide any benefits ov
 Lox is built around the idea of spooling, which allows you to capture logs generated during function execution and return them alongside the function's output.
 While it's obviously possible to implement this functionality yourself, Lox provides a simple and efficient way to do so without having to carry around boilerplate code in your functions.
 
+```python
+import jax
+import lox
+
+def f(xs):
+    lox.log({"xs": xs})
+    def scan_step(xs, x):
+        xs = xs + x
+        lox.log({"xs": carry, "x": x})
+        return carry, x
+    lox.log({"xs": xs})
+    ys, _ = jax.lax.scan(scan_step, 0, xs)
+    return ys
+
+xs = jnp.arange(3)
+ys, logs = lox.spool(f)(xs)
+```
+The spooled version of `f` will return both the output of the function and a pytree of all logs generated during execution.
+In the example above, `logs` will have the following structure.
+```
+{
+    'x': Array([0, 1, 2], dtype=int32), 
+    'xs': Array([[0, 1, 2],
+                 [0, 1, 2],
+                 [1, 2, 3],
+                 [3, 4, 5]], dtype=int32)
+}
+```
+
 ## Features
 
-### General Logging Utilities
-- **`lox.log`**  
+### General Logging Utility
+- **`lox.log`**
   Standard logging functionality. Deault behavior is logging the arguments to the console.
   Leverages JAX's `jax.debug.callback` to enable logging inside jitted functions.
 
 ### Function Spooling
-- **`lox.spool`**  
+- **`lox.spool`**
   Wraps a function so that it returns both its normal output and a pytree of the logs generated during execution.
   Supports various primitivs like `scan`, `cond` or `pjit`·
 
@@ -28,13 +57,12 @@ While it's obviously possible to implement this functionality yourself, Lox prov
   This is useful for performance-sensitive code where logging is not needed.
 
 ### Support for Logging Frameworks
-- **`lox.wandb`**  
-  Integrates with [Weights & Biases](https://wandb.ai/) to log data in a structured way.
-  Automatically handles logging of function arguments and outputs, as well as custom logs and most importantly supports `vmap` to enable logging of multiple runs in parallel.
+- **`lox.wandb`**
+  Wraps [Weights & Biases](https://wandb.ai/) and makes them compatible with JAX's function transformations.
+  Most importantly it supports `vmap` to enable logging of multiple runs in parallel.
 
-- **`lox.neptune`**  
-  Integrates with [Neptune](https://neptune.ai/) to log data in a structured way.
-  Similar to the Weights & Biases integration, it automatically handles logging of function arguments and outputs.
+- **`lox.neptune`**
+  Wraps [Neptune](https://neptune.ai/) and provides similar functionality to the Weights & Biases integration.
 
 ## Installation
 
