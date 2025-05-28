@@ -111,8 +111,8 @@ def spool_jaxpr(jaxpr: Jaxpr) -> tuple[dict[str, Any], dict[str, Any]]:
         log_shapes[k] = eqn_log_shapes[k]
 
 
+  eqn_logs, eqn_log_shapes = {}, {}
   for eqn in jaxpr.eqns:
-    eqn_logs, eqn_log_shapes = {}, {}
     if eqn.primitive == lox_p:
       eqn_logs, eqn_log_shapes = spool_lox_p(eqn)
     elif eqn.primitive == jax.lax.scan_p:
