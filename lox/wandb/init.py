@@ -2,36 +2,51 @@ import jax
 import jax.numpy as jnp
 import jax.experimental
 import wandb
+import lox
+import lox.util
+from lox.wandb.run import Run
+from rich.logging import RichHandler
+import logging
+import os
 
+# os.environ["WANDB_SILENT"] = "true"
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format="%(message)s",
+#     datefmt="%Y-%m-%d %H:%M:%S",
+#     handlers=[RichHandler()]
+# )
+# logger = logging.getLogger("lox.wandb")
 
-def wandb_log(key, *args, **kwargs):
+def log(run: Run, data, **kwargs):
+    def callback(id, data):
+        id = str(lox.String(id))
+        if wandb.run is None:
+            run = wandb.init(id=id, resume='allow')
+        else:
+            wandb.run.finish()
+            run = wandb.init(id=id, resume='allow')
+        print(f"\033[94mwandb(lox)\033[0m: Logging data to wandb run with id: {id}")
+        run.log(data, **kwargs)
+    jax.debug.callback(
+        callback, 
+        ordered=True, 
+        id=run.id, 
+        data=data
+    )
+    return
 
 
 def init(key, *args, **kwargs):
     def callback(key):
-        print(jax.process_index(), "init called")
+        if wandb.run is not None:
+            wandb.run.finish()
         run = wandb.init(*args, **kwargs)
-        run.finish()
-        return 0
-    print(key)
-    id = jax.experimental.io_callback(callback, result_shape_dtypes=jax.ShapeDtypeStruct((), jnp.int32), key=key)
-    jax.debug.print("{id}", id=id)
-    return id
-
-
-key = jax.random.PRNGKey(0)
-keys = jax.random.split(key, 4)
-print(keys)
-
-id = jax.vmap(init, (0,))(keys)
-
-
-# define datatype lox.sting(s: str) -> jnp.ndarray:
-def lox_string(s: str) -> jax.Array:
-    """Convert a string to a fixed-size JAX array of uint8."""
-    byte_data = s.encode('utf-8')
-    if len(byte_data) > Run.ENCODE_VECTOR_SIZE:
-        raise ValueError(f"String must be at most {Run.ENCODE_VECTOR_SIZE} bytes")
-    
-    padded = byte_data.ljust(Run.ENCODE_VECTOR_SIZE, b'\x00')
-    return jax.numpy.array(list(padded), dtype=jax.numpy.uint8)
+        id = lox.string(run.id)
+        print(f"\033[94mwandb(lox)\033[0m: Initializing wandb run with id: {id}")
+        return id.value
+    id = jax.experimental.io_callback(
+        callback, 
+        result_shape_dtypes=jax.ShapeDtypeStruct((lox.util.LENGTH,), jnp.uint8), 
+        key=key)
+    return Run(id=id)
