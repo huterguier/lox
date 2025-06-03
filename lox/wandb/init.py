@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import jax.experimental
 import wandb
 import lox
-import lox.util
 from lox.wandb.run import Run
 from rich.logging import RichHandler
 import logging
