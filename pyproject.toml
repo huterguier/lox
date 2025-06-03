@@ -32,5 +32,5 @@ neptune = [
 Homepage = "https://github.com/huterguier/lox"
 
 [tool.setuptools.packages.find]
-include = ["lox"]
+include = ["lox", "lox.*"]
 exclude = ["images"]
