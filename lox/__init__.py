@@ -1,4 +1,4 @@
 import lox.wandb
-from lox.spool import spool
-from lox.primitive import log
-from lox.util import String, string
+from .spool import spool
+from .primitive import log
+from .util import String, string
