@@ -1,4 +1,3 @@
-import lox.util
 import lox.wandb
 from lox.spool import spool
 from lox.primitive import log
