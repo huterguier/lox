@@ -1,1 +1,1 @@
-from init import init, log
+from .init import init, log
