@@ -35,7 +35,6 @@ mlir.register_lowering(lox_p, mlir.lower_fun(lox_lowering, multiple_results=True
 
 def lox_batch(vector_arg_values, batch_axes, structure, callback):
     outs = lox_p.bind(*vector_arg_values, structure=structure, callback=callback)
-    print("batch axes:", batch_axes)
     return outs, batch_axes
 batching.primitive_batchers[lox_p] = lox_batch
 

@@ -52,7 +52,6 @@ def flatten(fun: Callable, structure: PyTreeDef) -> Callable:
   """
   def wrapped(*args_flat):
     args, kwargs = jax.tree.unflatten(structure, args_flat)
-    print(args, kwargs)
     out = fun(*args, **kwargs)
     return out
   return wrapped
