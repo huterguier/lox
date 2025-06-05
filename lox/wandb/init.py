@@ -32,7 +32,7 @@ def init(key, **kwargs):
         run = wandb.init(reinit="create_new", **kwargs)
         runs[run.id] = run
 
-        return lox.string(run.id)
+        return lox.string(run.id).value
 
     for k, v in kwargs.items():
         if isinstance(v, str):
