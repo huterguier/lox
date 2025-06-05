@@ -37,9 +37,9 @@ def init(key, **kwargs):
     for k, v in kwargs.items():
         if isinstance(v, str):
             kwargs[k] = lox.string(v).value
-    id, name = jax.experimental.io_callback(
+    id = jax.experimental.io_callback(
         callback, 
-        result_shape_dtypes=2*(jax.ShapeDtypeStruct((lox.util.LENGTH,), jnp.uint8),),
+        result_shape_dtypes=jax.ShapeDtypeStruct((lox.util.LENGTH,), jnp.uint8),
         key=key,
         **kwargs
     )
