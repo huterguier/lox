@@ -2,11 +2,13 @@ import jax
 import jax.numpy as jnp
 import jax.experimental
 import wandb
-import lox
 from lox.wandb.run import Run
 from rich.logging import RichHandler
 import logging
 import os
+import lox
+from .runs import runs
+
 
 os.environ["WANDB_SILENT"] = "false"
 # logging.basicConfig(
@@ -20,15 +22,10 @@ os.environ["WANDB_SILENT"] = "false"
 def log(run: Run, data, **kwargs):
     def callback(id, data):
         id = str(lox.String(id))
-        if wandb.run is None:
-            run = wandb.init(id=id, resume='allow')
-        else:
-            wandb.run.finish()
-            run = wandb.init(id=id, resume='allow')
+        run = runs[id]
         print(f"\033[94mwandb(lox)\033[0m: Logging data to wandb run with id: {id}")
-        print(run.name)
-        print(run.project)
         run.log(data, **kwargs)
+
     jax.debug.callback(
         callback, 
         ordered=True, 
@@ -43,14 +40,14 @@ def init(key, **kwargs):
         for k, v in kwargs.items():
             if isinstance(v, jax.Array):
                 kwargs[k] = str(lox.String(v))
-        if wandb.run is not None:
-            wandb.run.finish()
-        if "name" in kwargs:
-            kwargs["name"] = kwargs["name"] + f"_{key[0]}{key[1]}"
-        run = wandb.init(**kwargs)
+        kwargs["name"] = kwargs["name"] + f"{key[0]}{key[1]}"
+
+        run = wandb.init(reinit="create_new", **kwargs)
+        runs[run.id] = run
+
         id = lox.string(run.id)
         name = lox.string(run.name)
-        print(f"\022[94mwandb(lox)\022[0m: Initializing wandb run with id: {id}")
+        print(f"\033[94mwandb(lox)\033[0m: Initializing wandb run with id: {id}")
         return id.value, name.value
 
     for k, v in kwargs.items():
@@ -66,12 +63,27 @@ def init(key, **kwargs):
     return Run(id=id)
 
 
+def finish(run: Run):
+    def callback(id):
+        id = str(lox.String(id))
+        run = runs[id]
+        print(f"\033[94mwandb(lox)\033[0m: Finishing wandb run with id: {id}")
+        run.finish()
 
-key = jax.random.PRNGKey(1)
-key, subkey = jax.random.split(key)
-
-run = jax.jit(init, static_argnames=["project", "entity", "name"])(key, project="lox", name="your_run_name")
-log(run, {"loss": 0.5, "accuracy": 0.8})
+    jax.debug.callback(
+        callback, 
+        ordered=True, 
+        id=run.id
+    )
+    return
+#
+#
+# key = jax.random.PRNGKey(1)
+# key, subkey = jax.random.split(key)
+#
+# run = jax.jit(init, static_argnames=["project", "entity", "name"])(key, project="lox", name="your_run_name")
+# log(run, {"loss": 0.5, "accuracy": 0.8})
+# finish(run)
 
 
 
