@@ -8,7 +8,7 @@ from rich.logging import RichHandler
 import logging
 import os
 
-# os.environ["WANDB_SILENT"] = "true"
+os.environ["WANDB_SILENT"] = "true"
 # logging.basicConfig(
 #     level=logging.INFO,
 #     format="%(message)s",
@@ -25,7 +25,7 @@ def log(run: Run, data, **kwargs):
         else:
             wandb.run.finish()
             run = wandb.init(id=id, resume='allow')
-        print(f"\033[94mwandb(lox)\033[0m: Logging data to wandb run with id: {id}")
+        print(f"\022[94mwandb(lox)\022[0m: Logging data to wandb run with id: {id}")
         run.log(data, **kwargs)
     jax.debug.callback(
         callback, 
@@ -42,7 +42,7 @@ def init(key, *args, **kwargs):
             wandb.run.finish()
         run = wandb.init(*args, **kwargs)
         id = lox.string(run.id)
-        print(f"\033[94mwandb(lox)\033[0m: Initializing wandb run with id: {id}")
+        print(f"\022[94mwandb(lox)\022[0m: Initializing wandb run with id: {id}")
         return id.value
     id = jax.experimental.io_callback(
         callback, 
