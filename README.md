@@ -31,7 +31,7 @@ The spooled version of `f` will return both the output of the function and a pyt
 In the example above, `logs` will have the following structure.
 ```
 {
-    'x': Array([[0, 1, 2]], dtype=int32), 
+    'x': Array([0, 1, 2], dtype=int32), 
     'xs': Array([[0, 1, 2],
                  [0, 1, 2],
                  [1, 2, 3],
