@@ -1,10 +1,9 @@
 import jax
 from dataclasses import dataclass
-import lox
+from typing import Any
 
 
 @jax.tree_util.register_dataclass
 @dataclass
 class Run:
-    id: lox.String
-    name: lox.String
+    id: Any
