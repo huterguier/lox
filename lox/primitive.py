@@ -38,8 +38,8 @@ def lox_batch(vector_arg_values, batch_axes, structure, callback):
     return outs, batch_axes
 batching.primitive_batchers[lox_p] = lox_batch
 
-def lox_jvp(arg_values, arg_tangents):
-    return lox_p.bind(*arg_values), []
+def lox_jvp(arg_values, arg_tangents, structure, callback):
+    return lox_p.bind(*arg_values, structure=structure, callback=callback), []
 ad.primitive_jvps[lox_p] = lox_jvp
 
 def lox_p_transpose(ct, x):
