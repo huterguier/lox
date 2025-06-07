@@ -19,7 +19,7 @@ def save(data: dict[str, Any], path: lox.String, key: jax.Array = None):
       if os.path.exists(file):
         with open(file, 'rb') as f:
           value = pickle.load(f)
-        value = jax.tree.map(lambda v, d: jnp.concatenate(v, d), value, data[key])
+        value = jax.tree.map(lambda v, d: jnp.concatenate([v, d]), value, data[key])
         with open(file, 'wb') as f:
           pickle.dump(value, f)
       else:
