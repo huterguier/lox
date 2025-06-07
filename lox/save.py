@@ -7,9 +7,11 @@ from typing import Any
 import lox
 
 
-def save(data: dict[str, Any], path: lox.String):
-  def _callback(data: dict[str, Any], path):
+def save(data: dict[str, Any], path: lox.String, key: jax.Array = None):
+  def _callback(data: dict[str, Any], path, key):
     path = str(lox.String(path))
+    if key is not None:
+      path = path + '/' + f"{key[0]}{key[1]}"
     for key in data:
       file = path + '/' + key + '.pkl'
       if os.path.exists(file):
@@ -28,7 +30,8 @@ def save(data: dict[str, Any], path: lox.String):
     _callback,
     ordered=True,
     data=data,
-    path=path.value
+    path=path.value,
+    key=key
   )
 
   return
