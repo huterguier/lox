@@ -1,4 +1,5 @@
 import jax
+import jax.numpy as jnp
 import jax.experimental
 import pickle
 import os
@@ -12,12 +13,13 @@ def save(data: dict[str, Any], path: lox.String, key: jax.Array = None):
     path = str(lox.String(path))
     if key is not None:
       path = path + '/' + f"{key[0]}{key[1]}"
+
     for key in data:
       file = path + '/' + key + '.pkl'
       if os.path.exists(file):
         with open(file, 'rb') as f:
           value = pickle.load(f)
-        value = jax.tree.map(lambda v, d: v + d, value, data[key])
+        value = jax.tree.map(lambda v, d: jnp.concatenate(v, d), value, data[key])
         with open(file, 'wb') as f:
           pickle.dump(value, f)
       else:
