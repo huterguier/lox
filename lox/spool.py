@@ -237,11 +237,11 @@ def spool_while_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
   Raises:
       ValueError: If the jaxpr contains any logging operations, since while loops have non-static lengths.
   """
-  jaxpr_logs_shape, jaxpr_log_shapes = spool_jaxpr(eqn.params["jaxpr"].jaxpr)
-  if jaxpr_logs_shape or jaxpr_log_shapes:
+  cond_logs_shape, cond_log_shapes = spool_jaxpr(eqn.params["cond_jaxpr"].jaxpr)
+  body_logs_shape, body_log_shapes = spool_jaxpr(eqn.params["body_jaxpr"].jaxpr)
+  if cond_logs_shape or cond_log_shapes or body_logs_shape or body_log_shapes:
     raise ValueError("Spooling for while loops is not supported due to non-static length.")
-  eqn_logs, eqn_log_shapes = jaxpr_logs_shape, jaxpr_log_shapes
-  return eqn_logs, eqn_log_shapes
+  return {}, {}
 
 
 def spool_pjit_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
