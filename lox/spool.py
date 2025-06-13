@@ -1,12 +1,12 @@
 import jax
 import jax.core
+import jax.extend
 import jax.numpy as jnp
 from jax import ShapeDtypeStruct
 from jax.core import ShapedArray, AxisName
 from jax.extend.core import Var, ClosedJaxpr, Jaxpr, JaxprEqn
 from jax._src import source_info_util
 from typing import Any, Iterable, Sequence, Callable
-
 from jax.tree_util import PyTreeDef 
 from lox.primitive import lox_p
 from lox.nolog import nolog_jaxpr
@@ -15,6 +15,14 @@ from functools import wraps
 
 
 def is_hashable(arg):
+  """
+  Check if an argument is hashable.
+
+  Args:
+      arg: The argument to check.
+  Returns:
+      bool: True if the argument is hashable, False otherwise.
+  """
   try:
     hash(arg)
     return True
@@ -23,6 +31,15 @@ def is_hashable(arg):
 
 
 def spool(fun: Callable, keep_logs=False) -> Callable:
+  """
+  Spools a function to extract logs and their shapes, allowing for dynamic argument handling.
+
+  Args:
+      fun (Callable): The function to be spooled.
+      keep_logs (bool): Whether to keep logs in the jaxpr.
+  Returns:
+      Callable: A wrapped function that returns the spooled jaxpr and logs.
+  """
   @wraps(fun)
   def wrapped(*args, **kwargs):
     args_flat, structure = jax.tree.flatten((args, kwargs))
@@ -65,7 +82,19 @@ def make_spooled_jaxpr(
     abstracted_axes: Any | None = None,
     keep_logs: bool = False,
 ) -> Callable[..., ClosedJaxpr | tuple[ClosedJaxpr, Any]]:
-  
+  """
+  Creates a spooled jaxpr for the given function, extracting logs and their shapes.
+
+  Args:
+      fun (Callable): The function to create a jaxpr for.
+      static_argnums (int | Iterable[int]): The indices of static arguments.
+      axis_env (Sequence[tuple[AxisName, int]] | None): The axis environment for the jaxpr.
+      return_shape (bool): Whether to return the shape of the output.
+      abstracted_axes (Any | None): Abstracted axes for the jaxpr.
+      keep_logs (bool): Whether to keep logs in the jaxpr.
+  Returns:
+      Callable[..., ClosedJaxpr | tuple[ClosedJaxpr, Any]]: A wrapped function that returns the jaxpr and logs.
+  """
   def wrapped(*args, **kwargs):
     closed_jaxpr, out_shape = jax.make_jaxpr(
         fun,
@@ -85,6 +114,15 @@ def make_spooled_jaxpr(
 
 
 def spool_jaxpr(jaxpr: Jaxpr) -> tuple[dict[str, Any], dict[str, Any]]:
+  """
+  Spools the logs from a jaxpr, extracting logs and their shapes from each equation.
+  Combines logs from nested equations in the order they will be executed.
+
+  Args:
+      jaxpr (Jaxpr): The jaxpr to spool.
+  Returns:
+      tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
+  """
 
   logs: dict[str, Any] = {}
   log_shapes: dict[str, Any] = {}
