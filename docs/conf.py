@@ -24,6 +24,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_logo = '_static/lox.png'
+html_favicon = '_static/favivon.png'
 
 html_theme = 'sphinx_book_theme'
 html_static_path = ['_static']
