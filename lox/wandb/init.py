@@ -5,6 +5,7 @@ import wandb
 from lox.wandb.run import Run
 import lox
 from .runs import runs
+from functools import partial
 
 
 def log(run: Run, data, **kwargs):
@@ -33,6 +34,11 @@ def init(key, **kwargs):
         runs[run.id] = run
 
         return lox.string(run.id).value
+
+    if "config" in kwargs:
+        config = kwargs["config"]
+        kwargs = {k: v for k, v in config.items() if k != "config"}
+        callback = partial(callback, config=config)
 
     for k, v in kwargs.items():
         if isinstance(v, str):
