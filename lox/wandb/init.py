@@ -5,6 +5,23 @@ import wandb
 from lox.wandb.run import Run
 import lox
 from .runs import runs
+from functools import partial
+
+
+def is_hashable(arg):
+  """
+  Check if an argument is hashable.
+
+  Args:
+      arg: The argument to check.
+  Returns:
+      bool: True if the argument is hashable, False otherwise.
+  """
+  try:
+    hash(arg)
+    return True
+  except TypeError:
+    return False
 
 
 def log(run: Run, data, **kwargs):
@@ -34,11 +51,15 @@ def init(key, **kwargs):
 
         return lox.string(run.id).value
 
-    for k, v in kwargs.items():
+    static_kwargs = {k: v for k, v in kwargs.items() if is_hashable(v)}
+    dynamic_kwargs = {k: v for k, v in kwargs.items() if not is_hashable(v)}
+
+    for k, v in dynamic_kwargs.items():
         if isinstance(v, str):
             kwargs[k] = lox.string(v).value
+
     id = jax.experimental.io_callback(
-        callback, 
+        partial(callback, **static_kwargs),
         result_shape_dtypes=jax.ShapeDtypeStruct((lox.util.LENGTH,), jnp.uint8),
         key=key,
         **kwargs
