@@ -37,7 +37,7 @@ def init(key, **kwargs):
 
     if "config" in kwargs:
         config = kwargs["config"]
-        kwargs = {k: v for k, v in config.items() if k != "config"}
+        kwargs = {k: v for k, v in kwargs.items() if k != "config"}
         callback = partial(callback, config=config)
 
     for k, v in kwargs.items():
