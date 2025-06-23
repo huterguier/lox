@@ -5,6 +5,10 @@
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath('..'))
 
 project = 'Lox'
 copyright = '2025, huterguier'
@@ -31,3 +35,16 @@ html_static_path = ['_static']
 html_css_files = [
     'style.css',
 ]
+
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',       # for Google/Numpy docstrings
+    'sphinx_autodoc_typehints',  # for type hints
+    'myst_nb',
+]
+
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': True,
+    'show-inheritance': True,
+}
