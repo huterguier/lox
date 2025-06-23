@@ -7,27 +7,10 @@ from jax.core import ShapedArray, AxisName
 from jax.extend.core import Var, ClosedJaxpr, Jaxpr, JaxprEqn
 from jax._src import source_info_util
 from typing import Any, Iterable, Sequence, Callable
-from jax.tree_util import PyTreeDef 
 from lox.primitive import lox_p
 from lox.nolog import nolog_jaxpr
-
+from lox.util import is_hashable, flatten
 from functools import wraps
-
-
-def is_hashable(arg):
-  """
-  Check if an argument is hashable.
-
-  Args:
-      arg: The argument to check.
-  Returns:
-      bool: True if the argument is hashable, False otherwise.
-  """
-  try:
-    hash(arg)
-    return True
-  except TypeError:
-    return False
 
 
 def spool(fun: Callable, keep_logs=False) -> Callable:
@@ -57,22 +40,6 @@ def spool(fun: Callable, keep_logs=False) -> Callable:
     return out
   return wrapped
 
-
-def flatten(fun: Callable, structure: PyTreeDef) -> Callable:
-  """
-    Transforms a function to accept a single flat argument list.
-
-    Args:
-        fun (Callable): The function to be transformed.
-    Returns:
-        Callable: A new function that accepts a single flat argument list.
-  """
-  def wrapped(*args_flat):
-    args, kwargs = jax.tree.unflatten(structure, args_flat)
-    out = fun(*args, **kwargs)
-    return out
-  return wrapped
-    
 
 def make_spooled_jaxpr(
     fun: Callable,
