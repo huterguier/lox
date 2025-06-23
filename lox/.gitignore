@@ -1,0 +1,9 @@
+**/*.py[cod]
+**/__pycache__/
+build/
+*.egg-info
+*pytype
+docs*/**/_autosummary
+docs*/_build
+docs*/**/tmp
+
