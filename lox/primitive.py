@@ -12,7 +12,7 @@ lox_p.multiple_results = True
 def log(data, step=None, callback=None):
     if callback is None:
         def _callback(data):
-            print("Logging data:", data)
+            pass
         callback = _callback
     data_flat, structure = jax.tree.flatten(data)
     return lox_p.bind(*data_flat, structure=structure, callback=callback)
