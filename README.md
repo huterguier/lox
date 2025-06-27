@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="https://github.com/huterguier/lox/blob/dev/images/lox4.png" width="230">
+    <img src="https://github.com/huterguier/lox/blob/dev/docs/_static/lox.png" width="230">
 </div>
 
 # Accelerated logging in JAX
