@@ -39,9 +39,12 @@ html_css_files = [
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',       # for Google/Numpy docstrings
+    'sphinx.ext.autosummary',  # for generating summary tables
     'sphinx_autodoc_typehints',  # for type hints
     'myst_nb',
 ]
+
+autosummary_generate = True
 
 autodoc_default_options = {
     'members': True,

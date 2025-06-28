@@ -15,7 +15,7 @@ from functools import wraps
 
 def spool(fun: Callable, keep_logs=False) -> Callable:
   """
-  Spools a function to extract logs and their shapes, allowing for dynamic argument handling.
+  Spools a function to extract logs generated during its execution.
 
   Args:
       fun (Callable): The function to be spooled.
