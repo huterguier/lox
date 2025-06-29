@@ -39,6 +39,18 @@ Ideally, `spool` is called at the same level where the resulting data is written
 
 The following are two examples illustrating when and when not to use `spool`.
 
+
+## How to vmap over strings?
+As you probably know, JAX does not support strings. 
+However a lot of times it can be useful to vmap over strings, for example when running different seeds in parallel and assigning a different path or name to each run.
+Lox provides a custom string wrapper that encodes strings as JAX arrays, allowing you to use them with `vmap`.
+````python
+import lox
+
+names = jax.vmap(lambda k: lox.String(f"run_{k}"))(jax.numpy.arange(10))
+````
+
+
 ## Conditionals
 
 Whenever you try to log something within a `cond` or conditional block,  
