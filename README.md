@@ -34,6 +34,7 @@ In the example above, `logs` will have the following structure.
     'x': Array([0, 1, 2], dtype=int32), 
     'xs': Array([[0, 1, 2],
                  [0, 1, 2],
+                 [0, 1, 2],
                  [1, 2, 3],
                  [3, 4, 5]], dtype=int32)
 }
