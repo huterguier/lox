@@ -3,6 +3,7 @@ from .tap import tap
 from .primitive import log
 from .util import String, string
 from .save import save
+from .logdict import logdict
 import lox.wandb as wandb
 
 __all__ = [
@@ -12,5 +13,6 @@ __all__ = [
     'String',
     'string',
     'save',
+    'logdict',
     'wandb',
 ]
