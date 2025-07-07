@@ -3,6 +3,7 @@ API Reference of ``lox``
 
 Core API
 -------------
+
 .. autosummary::
    :toctree: _autosummary
 
@@ -10,11 +11,14 @@ Core API
    lox.tap
    lox.spool
    lox.util
-   lox.logdict
    lox.String
+   lox.logdict
+
+
 
 Weights and Biases Integration
--------------------------
+------------------------------
+
 .. autosummary::
    :toctree: _autosummary
 
