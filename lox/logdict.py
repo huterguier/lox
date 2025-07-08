@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
 
 class stepdict(dict[str, jax.Array]):
@@ -159,14 +159,12 @@ class logdict(dict[str, Any]):
 
         _, logs_f = lox.spool(f)()
         _, logs_g = lox.spool(g)()
-
         logs = logs_f + logs_g
 
     .. code-block:: python
 
         def h():
-            f()
-            g()
+          f(); g()
         _, logs = lox.spool(h)()
 
     Note that this is not the same as updating the dict.
@@ -193,6 +191,58 @@ class logdict(dict[str, Any]):
     new_steps = self.steps + other.steps
 
     return logdict(new_data, **new_steps)
+
+
+  def reduce(
+      self, 
+      mode: str | Callable = "mean", 
+      step: str | None = None,
+      keep_steps: bool = True
+  ) -> 'logdict':
+    """
+    Reduces the logdict data using the specified mode.
+    The ``step`` argument allows to specify on which step the reduction should be applied.
+    Whenever there are other steps, the reduction will be applied to them aswell.
+    Alternatively you can set ``keep_steps`` to ``False`` to remove all other steps.
+
+    .. code-block:: python
+
+      >>> _, logs = lox.spool(f)()
+      >>> logs["loss"]
+      [1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2, 0.17]
+      >>> logs.step["loss"]
+      [0, 1, 2, 3, 4, 5, 6, 7, 8]
+      >>> loss.episode["loss"]
+      [0, 0, 0, 1, 1, 1, 2, 2, 2]
+
+      >>> logs = logs.reduce("mean", step="episode", keep_steps=True)
+      >>> logs["loss"]
+      [0.8, 0.4, 0.21]
+      >>> logs.step["loss"]
+      [1, 4, 7]
+      >>> logs.episode["loss"]
+      [0, 1, 2]
+
+    This example shows how to reduce the loss values by taking the mean
+    over the "episode" step, while keeping the other steps intact.
+    Consequently the reduction is also applied to the "step" step, where 
+    the mean is taken over all steps that belong to the same episode.
+    There are also other reduction modes available, such as "max" or a "min".
+    But note that these reduction modes can only be applied to scalar values,
+    as they do not make sense for general arrays or pytrees.
+
+    Args:
+      mode (str | Callable): The reduction mode to apply. Can be one of "mean", "sum", or a custom function.
+      step (str): The step on which to apply the reduction. If None, the reduction is applied to all steps.
+      keep_steps (bool): Whether to keep the all other steps in the logdict.
+    Returns:
+      logdict: A new logdict containing the reduced data.
+    """
+
+
+
+    return self
+
 
 
 data = {
