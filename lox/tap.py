@@ -152,7 +152,6 @@ def tap_jaxpr(jaxpr: Jaxpr, argnames: Iterable[str] | None = None):
       call_jaxpr_modified = tap_jaxpr(eqn.params["jaxpr"], argnames)
       if call_jaxpr_modified:
         eqn.primitive = jax.extend.core.primitives.call_p
-        print(eqn.params)
         eqn.params = {"call_jaxpr": eqn.params["jaxpr"].jaxpr}
         modified = True
 
