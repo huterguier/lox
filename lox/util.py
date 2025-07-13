@@ -8,8 +8,6 @@ from typing import Callable
 PAD_CHAR = '\uffff'
 LENGTH = 1024
 
-print(ord(PAD_CHAR))
-print(chr(ord(PAD_CHAR)))
 
 @jax.tree_util.register_dataclass
 @dataclass
