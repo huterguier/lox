@@ -89,8 +89,7 @@ def make_tapped_jaxpr(
         return_shape=True,
         abstracted_axes=abstracted_axes,
     )(*args, **kwargs)
-    modified = tap_jaxpr(closed_jaxpr.jaxpr, argnames=argnames)
-    del modified  # Unused, might throw a warning if there are no modifications in the future.
+    _ = tap_jaxpr(closed_jaxpr.jaxpr, argnames=argnames)
     return closed_jaxpr, out_shape
   return wrapped
 

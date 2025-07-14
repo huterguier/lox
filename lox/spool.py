@@ -10,6 +10,7 @@ from typing import Any, Iterable, Sequence, Callable
 from lox.primitive import lox_p
 from lox.nolog import nolog_jaxpr
 from lox.util import is_hashable, flatten
+from lox.logdict import logdict
 from functools import wraps
 
 
@@ -80,7 +81,7 @@ def make_spooled_jaxpr(
   return wrapped
 
 
-def spool_jaxpr(jaxpr: Jaxpr) -> tuple[dict[str, Any], dict[str, Any]]:
+def spool_jaxpr(jaxpr: Jaxpr) -> logdict:
   """
   Spools the logs from a jaxpr, extracting logs and their shapes from each equation.
   Combines logs from nested equations in the order they will be executed.
@@ -91,79 +92,50 @@ def spool_jaxpr(jaxpr: Jaxpr) -> tuple[dict[str, Any], dict[str, Any]]:
       tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
   """
 
-  logs: dict[str, Any] = {}
-  log_shapes: dict[str, Any] = {}
+  def combine(logs_jaxpr):
+    logs_combined = logdict({})
+    for logs_eqn in logs_jaxpr:
+      logs_combined += logs_eqn
+    return logs_combined
 
-  def add_logs(eqn_logs: dict[str, Any]):
-    for k, v in eqn_logs.items():
-      if k in logs:
-        logs[k].append(v)
-      else:
-        logs[k] = [v]
-
-  def add_log_shapes(eqn_log_shapes):
-    for k, v in eqn_logs.items():
-      if k in log_shapes:
-        log_structures = jax.tree.structure(log_shapes[k])
-        eqn_log_structures = jax.tree.structure(eqn_log_shapes[k])
-        if log_structures != eqn_log_structures:
-          raise ValueError(f"Log structure mismatch for {k}: {log_structures} vs {eqn_log_structures}")
-        if not jax.tree.all(jax.tree.map(lambda x, y: x.shape == y.shape, log_shapes[k], eqn_log_shapes[k])):
-          raise ValueError(f"Log shape mismatch for {k}: {log_shapes[k]} vs {eqn_log_shapes[k]}")
-        if not jax.tree.all(jax.tree.map(lambda x, y: x.dtype == y.dtype, log_shapes[k], eqn_log_shapes[k])):
-          raise ValueError(f"Log dtype mismatch for {k}: {log_shapes[k]} vs {eqn_log_shapes[k]}")
-      else:
-        log_shapes[k] = eqn_log_shapes[k]
-
-
+  logs_jaxpr = []
   for eqn in jaxpr.eqns:
-    eqn_logs, eqn_log_shapes = {}, {}
+    logs_eqn = None
     if eqn.primitive == lox_p:
-      eqn_logs, eqn_log_shapes = spool_lox_p(eqn)
+      logs_eqn = spool_lox_p(eqn)
     elif eqn.primitive == jax.lax.scan_p:
-      eqn_logs, eqn_log_shapes = spool_scan_p(eqn)
+      logs_eqn = spool_scan_p(eqn)
     elif eqn.primitive == jax.lax.cond_p:
-      eqn_logs, eqn_log_shapes = spool_cond_p(eqn)
+      logs_eqn = spool_cond_p(eqn)
     elif eqn.primitive == jax.lax.while_p:
-      eqn_logs, eqn_log_shapes = spool_while_p(eqn)
+      logs_eqn = spool_while_p(eqn)
     elif eqn.primitive.name == "pjit":
-      eqn_logs, eqn_log_shapes = spool_pjit_p(eqn)
+      logs_eqn = spool_pjit_p(eqn)
     elif eqn.primitive == jax.extend.core.primitives.call_p:
-      eqn_logs, eqn_log_shapes = spool_call_p(eqn)
+      logs_eqn = spool_call_p(eqn)
 
-    add_logs(eqn_logs)
-    add_log_shapes(eqn_log_shapes)
+    if logs_eqn:
+      logs_jaxpr.append(logs_eqn)
 
-  def combine(logs):
-    for k, vals in logs.items():
-      reshaped_vals = []
-      for val in vals:
-        reshaped_val = jax.tree.map(lambda v, shape: jnp.reshape(v, (-1,) + shape.shape), val, log_shapes[k])
-        reshaped_vals.append(reshaped_val)
 
-      if len(reshaped_vals) == 1:
-        logs[k] = reshaped_vals[0]
-      else:
-        logs[k] = jnp.concatenate(reshaped_vals, axis=0)
-    return logs
-
-  if logs:
-    logs_avals = jax.tree.map(lambda v: v.aval, logs)
-    combine_jaxpr, logs_shape = jax.make_jaxpr(combine, return_shape=True)(logs_avals)
+  if logs_jaxpr:
+    logs_avals = jax.tree_util.tree_map(lambda v: v.aval, logs_jaxpr)
+    jaxpr_combine, shape_combine = jax.make_jaxpr(combine, return_shape=True)(logs_avals).jaxpr
+    structure_combine = jax.tree_util.tree_structure(logs_jaxpr)
+    logs_jaxpr = jax.tree_util.tree_unflatten(structure_combine, jaxpr_combine.invars)
     jaxpr.eqns.append(JaxprEqn(
         primitive=jax.extend.core.primitives.call_p,
-        invars=jax.tree.leaves(logs),
-        outvars=combine_jaxpr.jaxpr.outvars,
-        params={"call_jaxpr": combine_jaxpr.jaxpr},
+        invars=jax.tree_util.tree_leaves(logs_jaxpr),
+        outvars=jaxpr_combine.outvars,
+        params={"call_jaxpr": jaxpr_combine},
         source_info=source_info_util.current(),
         effects=(),
         ctx=jaxpr.eqns[0].ctx,
     ))
-    jaxpr.outvars.extend(combine_jaxpr.jaxpr.outvars)
   else:
-    logs_shape = {}
+    logs_jaxpr = logdict({})
 
-  return logs_shape, log_shapes
+  return logs_jaxpr
 
 
 def spool_lox_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -175,14 +147,11 @@ def spool_lox_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
   Returns:
       tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
   """
-  eqn_logs_structure = eqn.params["structure"]
-  eqn_logs = jax.tree.unflatten(eqn_logs_structure, eqn.invars)
-  eqn_log_shapes_flat = jax.tree.map(lambda v: ShapeDtypeStruct(v.aval.shape, v.aval.dtype), eqn.invars)
-  eqn_log_shapes = jax.tree.unflatten(eqn_logs_structure, eqn_log_shapes_flat)
-  return eqn_logs, eqn_log_shapes
+  logs_eqn = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
+  return logs_eqn
 
 
-def spool_scan_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
+def spool_scan_p(eqn: JaxprEqn) -> logdict:
   """
   Spools the logs from a scan_p primitive. The logs of the jaxpr are reshaped to have a static length,
   which is the length of the scan.
@@ -192,11 +161,11 @@ def spool_scan_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
   Returns:
       tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
   """
-  jaxpr_logs_shape, jaxpr_log_shapes = spool_jaxpr(eqn.params["jaxpr"].jaxpr)
-  eqn_logs = jax.tree.map(lambda s: Var("", aval=ShapedArray((eqn.params["length"],) + s.shape, s.dtype)), jaxpr_logs_shape)
-  eqn_log_shapes = jaxpr_log_shapes
-  eqn.outvars.extend(jax.tree.leaves(eqn_logs))
-  return eqn_logs, eqn_log_shapes
+  logs_jaxpr = spool_jaxpr(eqn.params["jaxpr"].jaxpr)
+  logs_jaxpr_shape = jax.tree_util.tree_map(lambda v: v.aval.shape, logs_jaxpr)
+  logs_eqn = jax.tree.map(lambda s: Var("", aval=ShapedArray((eqn.params["length"],) + s.shape, s.dtype)), logs_jaxpr_shape)
+  eqn.outvars.extend(jax.tree_util.tree_leaves(logs_eqn))
+  return logs_eqn
 
 
 def spool_cond_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -211,7 +180,7 @@ def spool_cond_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
       ValueError: If the branches do not have the same log structure or shapes.
   """
   branches = eqn.params["branches"]
-  branches_logs, branches_log_shapes = [], []
+  logs_branches = []
 
   for branch in branches:
     branch_logs_shape, branch_log_shapes = spool_jaxpr(branch.jaxpr)
@@ -223,11 +192,11 @@ def spool_cond_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
   if not all(branches_log_shapes[0] == shape for shape in branches_log_shapes):
     raise ValueError("All branches must have the same log shapes.")
 
-  eqn_logs = jax.tree.map(lambda s: Var("", aval=ShapedArray(s.shape, s.dtype)), branches_logs[0])
+  logs_eqn = jax.tree.map(lambda s: Var("", aval=ShapedArray(s.shape, s.dtype)), branches_logs[0])
   eqn_log_shapes = branches_log_shapes[0]
-  eqn.outvars.extend(jax.tree.leaves(eqn_logs))
+  eqn.outvars.extend(jax.tree.leaves(logs_eqn))
 
-  return eqn_logs, eqn_log_shapes
+  return logs_eqn, eqn_log_shapes
 
 
 def spool_while_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -261,13 +230,13 @@ def spool_pjit_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
   """
   jaxpr_logs_shape, jaxpr_log_shapes = spool_jaxpr(eqn.params["jaxpr"].jaxpr)
   if jaxpr_logs_shape or jaxpr_log_shapes:
-    eqn_logs = jax.tree.map(lambda s: Var("", aval=ShapedArray(s.shape, s.dtype)), jaxpr_logs_shape)
+    logs_eqn = jax.tree.map(lambda s: Var("", aval=ShapedArray(s.shape, s.dtype)), jaxpr_logs_shape)
     eqn_log_shapes = jaxpr_log_shapes
 
-    eqn.outvars.extend(jax.tree.leaves(eqn_logs))
+    eqn.outvars.extend(jax.tree.leaves(logs_eqn))
     eqn.primitive = jax.extend.core.primitives.call_p
     eqn.params = {"call_jaxpr": eqn.params["jaxpr"].jaxpr}
-    return eqn_logs, eqn_log_shapes
+    return logs_eqn, eqn_log_shapes
   else:
     return {}, {}
 
@@ -283,7 +252,7 @@ def spool_call_p(eqn: JaxprEqn) -> tuple[dict[str, Any], dict[str, Any]]:
       tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
   """
   jaxpr_logs_shape, jaxpr_log_shapes = spool_jaxpr(eqn.params["call_jaxpr"])
-  eqn_logs = jax.tree.map(lambda s: Var("", aval=ShapedArray(s.shape, s.dtype)), jaxpr_logs_shape)
+  logs_eqn = jax.tree.map(lambda s: Var("", aval=ShapedArray(s.shape, s.dtype)), jaxpr_logs_shape)
   eqn_log_shapes = jaxpr_log_shapes
-  eqn.outvars.extend(jax.tree.leaves(eqn_logs))
-  return eqn_logs, eqn_log_shapes
+  eqn.outvars.extend(jax.tree.leaves(logs_eqn))
+  return logs_eqn, eqn_log_shapes

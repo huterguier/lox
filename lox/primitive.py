@@ -1,28 +1,38 @@
 import jax
+import jax.numpy as jnp
 from jax.extend import core
 from jax.interpreters import mlir, batching, ad
 from jax._src.debugging import DebugEffect
+from lox.logdict import logdict
 
 
 lox_p = core.Primitive("lox")
 lox_p.multiple_results = True
 
-def log(data, **steps):
-    data_flat, structure = jax.tree.flatten(data)
-    return lox_p.bind(*data_flat, structure=structure)
+
+def log(data: dict, **steps: int) -> logdict:
+    # add leading dim to all arrays in the data dict
+    data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 0), data)
+    # create the steps dict such that each step contains a stepdict
+    steps = {k_step: {k_data: jnp.array([v_step]) for k_data, _ in data.items()} for k_step, v_step in steps.items()}
+    logs = logdict(data, **steps)
+    logs_flat, structure = jax.tree_util.tree_flatten(logs)
+    _ = lox_p.bind(*logs_flat, structure=structure)
+    return jax.tree_util.tree_unflatten(structure, logs_flat)
 
 @lox_p.def_impl
-def lox_impl(*data_flat, structure):
-    data = jax.tree.unflatten(structure, data_flat)
-    return data_flat
+def lox_impl(*logs_flat, structure):
+    del structure
+    return logs_flat
 
 @lox_p.def_effectful_abstract_eval
-def lox_abstract_eval(*data_flat, structure):
-    return list(data_flat), {DebugEffect()}
+def lox_abstract_eval(*logs_flat, structure):
+    del structure
+    return list(logs_flat), {DebugEffect()}
 
-def lox_lowering(*data_flat, structure):
-    data = jax.tree.unflatten(structure, data_flat)
-    return data_flat
+def lox_lowering(*logs_flat, structure):
+    del structure
+    return logs_flat
 mlir.register_lowering(lox_p, mlir.lower_fun(lox_lowering, multiple_results=True))
 
 def lox_batch(vector_arg_values, batch_axes, structure):
