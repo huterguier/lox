@@ -82,7 +82,7 @@ def flatten(fun: Callable, structure: PyTreeDef) -> Callable:
         Callable: A new function that accepts a single flat argument list.
   """
   def wrapped(*args_flat):
-    args, kwargs = jax.tree.unflatten(structure, args_flat)
+    args, kwargs = jax.tree_util.tree_unflatten(structure, args_flat)
     out = fun(*args, **kwargs)
     return out
   return wrapped

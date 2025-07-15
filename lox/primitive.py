@@ -14,12 +14,12 @@ def log(data, step=None, callback=None):
         def _callback(data):
             pass
         callback = _callback
-    data_flat, structure = jax.tree.flatten(data)
+    data_flat, structure = jax.tree_util.tree_flatten(data)
     return lox_p.bind(*data_flat, structure=structure, callback=callback)
 
 @lox_p.def_impl
 def lox_impl(*data_flat, structure, callback):
-    data = jax.tree.unflatten(structure, data_flat)
+    data = jax.tree_util.tree_unflatten(structure, data_flat)
     callback(data)
     return data_flat
 
@@ -28,7 +28,7 @@ def lox_abstract_eval(*data_flat, structure, callback):
     return list(data_flat), {DebugEffect()}
 
 def lox_lowering(*data_flat, structure, callback):
-    data = jax.tree.unflatten(structure, data_flat)
+    data = jax.tree_util.tree_unflatten(structure, data_flat)
     jax.debug.callback(callback, data)
     return data_flat
 mlir.register_lowering(lox_p, mlir.lower_fun(lox_lowering, multiple_results=True))

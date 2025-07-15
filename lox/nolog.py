@@ -12,9 +12,9 @@ def nolog(fun: Callable) -> Callable:
   def wrapped(*args, **kwargs):
     closed_jaxpr, out_shape = jax.make_jaxpr(fun, return_shape=True)(*args, **kwargs)
     nolog_jaxpr(closed_jaxpr.jaxpr)
-    out_structure = jax.tree.structure(out_shape)
+    out_structure = jax.tree_util.tree_structure(out_shape)
     out_flat = jax.core.eval_jaxpr(closed_jaxpr.jaxpr, closed_jaxpr.literals, *args)
-    out = jax.tree_util.tree_unflatten(jax.tree.structure(out_shape), out_flat)
+    out = jax.tree_util.tree_unflatten(jax.tree_util.tree_structure(out_shape), out_flat)
     return out
   return wrapped
 

@@ -30,7 +30,7 @@ def save(data: dict[str, Any], path: lox.String, mode: str='a', key: jax.Array =
         if os.path.exists(file):
           with open(file, 'rb') as f:
             value = pickle.load(f)
-          value = jax.tree.map(
+          value = jax.tree_util.tree_map(
             lambda v, d: jnp.concatenate([jnp.atleast_1d(v), jnp.atleast_1d(d)]),
             value,
             data[key]
@@ -76,7 +76,7 @@ def save(data: dict[str, Any], path: lox.String, mode: str='a', key: jax.Array =
 #   def _len(path):
 #     with open(path, 'rb') as f:
 #       data = pickle.load(f)
-#     return len(jax.tree.leaves(data)[0])
+#     return len(jax.tree_util.tree_leaves(data)[0])
 #
 #
 #   def _callback(path):
