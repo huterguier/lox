@@ -209,7 +209,6 @@ class logdict(dict[str, Any]):
       raise TypeError("Can only add another logdict")
     # iterate the keys and values side by side
     new_data = {}
-    new_steps = self.steps + other.steps
     for key in set(self.keys()).union(other.keys()):
       if key in self and key in other:
         new_data[key] = jnp.concatenate((self[key], other[key]))
@@ -217,7 +216,14 @@ class logdict(dict[str, Any]):
         new_data[key] = self[key]
       elif key in other:
         new_data[key] = other[key]
-    new_steps = self.steps + other.steps
+    new_steps = {}
+    for key in set(self.steps.keys()).union(other.steps.keys()):
+      if key in self.steps and key in other.steps:
+        new_steps[key] = self.steps[key] + other.steps[key]
+      elif key in self.steps:
+        new_steps[key] = self.steps[key]
+      elif key in other.steps:
+        new_steps[key] = other.steps[key]
 
     return logdict(new_data, **new_steps)
 
