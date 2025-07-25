@@ -1,13 +1,13 @@
 import jax
 import jax.core
 import jax.extend
-from jax.core import AxisName
 from jax.extend.core import ClosedJaxpr, Jaxpr
-from typing import Any, Iterable, Sequence, Callable
+from typing import Any, Hashable, Iterable, Sequence, Callable
 from lox.primitive import lox_p
 from lox.util import is_hashable, flatten
 from functools import wraps
 
+AxisName = Hashable
 
 def tap(
     fun: Callable, 
@@ -42,7 +42,7 @@ def tap(
   """
   @wraps(fun)
   def wrapped(*args, **kwargs):
-    args_flat, structure = jax.tree.flatten((args, kwargs))
+    args_flat, structure = jax.tree_util.tree_flatten((args, kwargs))
     static_argnums = tuple(i for i, arg in enumerate(args_flat) if is_hashable(arg))
     closed_jaxpr, out_shape = make_tapped_jaxpr(
       flatten(fun, structure),
@@ -51,7 +51,7 @@ def tap(
       argnames=argnames,
     )(*args_flat)
     dynamic_args_flat = tuple(arg for arg in args_flat if not is_hashable(arg))
-    out_structure = jax.tree.structure(out_shape)
+    out_structure = jax.tree_util.tree_structure(out_shape)
     out_flat = jax.core.eval_jaxpr(closed_jaxpr.jaxpr, closed_jaxpr.literals, *dynamic_args_flat)
     out = jax.tree_util.tree_unflatten(out_structure, out_flat)
     return out
@@ -107,7 +107,7 @@ def tap_jaxpr(jaxpr: Jaxpr, argnames: Iterable[str] | None = None):
   """
   def callback(structure, *vals):
     def _callback(*vals):
-      data = jax.tree.unflatten(structure, vals)
+      data = jax.tree_util.tree_unflatten(structure, vals)
       print(data)
     jax.debug.callback(
         _callback,
@@ -122,13 +122,13 @@ def tap_jaxpr(jaxpr: Jaxpr, argnames: Iterable[str] | None = None):
 
     if eqn.primitive == lox_p:
       structure = eqn.params["structure"]
-      invars_data = jax.tree.unflatten(structure, eqn.invars)
+      invars_data = jax.tree_util.tree_unflatten(structure, eqn.invars)
       if argnames is None:
         invars_data_tapped = invars_data
       else:
         invars_data_tapped = {k: v for k, v in invars_data.items() if k in argnames}
-      invars_tapped, structure_tapped = jax.tree.flatten(invars_data_tapped)
-      avals_tapped = jax.tree.map(lambda var: var.aval, invars_tapped)
+      invars_tapped, structure_tapped = jax.tree_util.tree_flatten(invars_data_tapped)
+      avals_tapped = jax.tree_util.tree_map(lambda var: var.aval, invars_tapped)
       if avals_tapped:
         print_jaxpr = jax.make_jaxpr(callback, static_argnums=(0,))(structure_tapped, *avals_tapped)
         jaxpr.eqns.insert(i, print_jaxpr.jaxpr.eqns[0])
