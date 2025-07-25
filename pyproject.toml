@@ -13,7 +13,7 @@ authors = [
   { name = "huterguier", email = "huterguier@gmail.com" }
 ]
 dependencies = [
-  "jax>=0.4.25"
+  "jax>=0.6.0"
 ]
 classifiers = [
   "Programming Language :: Python :: 3",

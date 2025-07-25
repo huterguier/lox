@@ -1,10 +1,12 @@
 import jax
-from typing import Callable
-from jax.core import ShapedArray, AxisName
+from typing import Callable, Hashable
+from jax.core import ShapedArray
 from jax.extend.core import Var, ClosedJaxpr, Jaxpr, JaxprEqn
 from jax._src import source_info_util
 from lox.primitive import lox_p
 import functools
+
+AxisName = Hashable
 
 
 def nolog(fun: Callable) -> Callable:
