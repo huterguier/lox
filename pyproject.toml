@@ -13,19 +13,12 @@ authors = [
   { name = "huterguier", email = "huterguier@gmail.com" }
 ]
 dependencies = [
-  "jax>=0.6.0"
+  "jax>=0.6.0",
+  "wandb>=0.15.0",
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Operating System :: OS Independent",
-]
-
-[pyproject.optional-dependencies]
-wandb = [
-  "wandb>=0.15.0"
-]
-neptune = [
-  "neptune-client>=0.14.0"
 ]
 
 [project.urls]
