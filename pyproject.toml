@@ -14,12 +14,13 @@ authors = [
 ]
 dependencies = [
   "jax>=0.6.0",
-  "wandb>=0.15.0",
+  "wandb>=0.20.1",
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Operating System :: OS Independent",
 ]
+
 
 [project.urls]
 Homepage = "https://github.com/huterguier/lox"

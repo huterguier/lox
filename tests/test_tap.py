@@ -16,9 +16,9 @@ class TapTest(parameterized.TestCase):
                 return carry + x, carry
             return jax.lax.scan(step, 0, xs)
         xs = jnp.arange(10)
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            ys, _ = lox.tap(f)(xs)
+        # buf = io.StringIO()
+        # with contextlib.redirect_stdout(buf):
+        ys, _ = lox.tap(f, argnames=("x",))(xs)
 
 
     def test_cond(self):
