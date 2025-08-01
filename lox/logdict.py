@@ -142,6 +142,22 @@ class logdict(dict[str, Any]):
     return cls(data, **steps)
 
 
+  def __delitem__(self, key):
+    """
+    Deletes an item from the logdict.
+    This behaves like a standard dictionary, but also removes the corresponding step information.
+
+    Args:
+      key (str): The key of the item to delete.
+    Raises:
+      KeyError: If the key does not exist in the logdict.
+    """
+    super().__delitem__(key)
+    for step in self.steps.values():
+      if key in step:
+        del step[key]
+
+
   def __getattr__(self, item):
     if item in self.steps:
       return self.steps[item]
@@ -149,7 +165,7 @@ class logdict(dict[str, Any]):
 
 
   @property
-  def data(self):
+  def data(self) -> dict[str, Any]:
     """
     Returns:
       dict: The data stored in the logdict as a standard dictionary.
