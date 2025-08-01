@@ -187,8 +187,16 @@ class logdict(dict[str, Any]):
     """
     if not isinstance(other, logdict):
       raise TypeError("can only merge with another logdict")
-    out = super().__or__(other)
-    out.steps = self.steps | other.steps
+    new_data = super().__or__(other)
+    new_steps = {}
+    for key in set(self.steps.keys()).union(other.steps.keys()):
+        if key in self.steps and key in other.steps:
+            new_steps[key] = self.steps[key] | other.steps[key]
+        elif key in self.steps:
+            new_steps[key] = self.steps[key]
+        elif key in other.steps:
+            new_steps[key] = other.steps[key]
+    return logdict(new_data, **new_steps)
 
 
   def __add__(self, other):
