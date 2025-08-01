@@ -1,12 +1,15 @@
+from functools import wraps
+from typing import Any, Callable, Hashable, Iterable, Sequence
+
 import jax
 import jax.core
 import jax.extend
-from jax.core import AxisName
 from jax.extend.core import ClosedJaxpr, Jaxpr
-from typing import Any, Iterable, Sequence, Callable
+
 from lox.primitive import lox_p
-from lox.util import is_hashable, flatten
-from functools import wraps
+from lox.util import flatten, is_hashable
+
+AxisName = Hashable
 
 
 def tap(
