@@ -102,11 +102,9 @@ class logdict(dict[str, Any]):
   steps: dict[str, stepdict]
 
 
-  def __init__(self, data: dict[str, Any], **steps: dict[str, jax.Array]):
+  def __init__(self, data: dict[str, Any], **steps: stepdict):
     super().__init__(data)
-    self.steps = {k: stepdict(v) for k, v in steps.items()}
-    for k, v in self.steps.items():
-      print(type(v))
+    self.steps = steps
 
 
   def tree_flatten(self) -> tuple:
