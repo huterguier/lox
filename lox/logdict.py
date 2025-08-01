@@ -1,8 +1,9 @@
 import jax
 import jax.numpy as jnp
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 
+@jax.tree_util.register_pytree_node_class
 class stepdict(dict[str, jax.Array]):
   """
   A dictionary that stores step values.
@@ -44,6 +45,31 @@ class stepdict(dict[str, jax.Array]):
         new_steps[key] = other[key]
     return stepdict(new_steps)
 
+  def tree_flatten(self) -> tuple:
+    """
+    Flattens the stepdict into a flat list of values.
+    This is used to register the stepdict as a pytree in JAX.
+
+    Returns:
+      tuple: A tuple containing the flattened values and the structure of the stepdict.
+    """
+    return jax.tree_util.tree_flatten(self)
+
+
+  @classmethod
+  def tree_unflatten(cls, structure, steps_flat) -> 'stepdict':
+    """
+    Reconstructs the stepdict from a flat list of values.
+    This is used to register the stepdict as a pytree in JAX.
+
+    Args:
+      structure (tuple): The structure of the stepdict.
+      flat_values: A flat list of values to reconstruct the stepdict.
+    Returns:
+      stepdict: A new stepdict instance containing the reconstructed values.
+    """
+    return cls(jax.tree_util.tree_unflatten(structure, steps_flat))
+
 
 @jax.tree_util.register_pytree_node_class
 class logdict(dict[str, Any]):
@@ -55,7 +81,7 @@ class logdict(dict[str, Any]):
   It behaves identically to a standard dictionary, but it additionally contains
   a ``steps`` attribute that stores timestamps at which the data was logged.
   Internally ``steps`` two level dictionary, where at the first level are
-  the names of the timestamps (e.g. "step", "episode", etc.),
+  the names of the timestamps (e.g. :string:`step`, :string:`episode`, etc.),
   and at the second level are the actual timestamps.
   However, it is not supposed to be accessed directly.
   Insted ``logdict`` provides a convenient interface to access the steps
@@ -76,9 +102,9 @@ class logdict(dict[str, Any]):
   steps: dict[str, stepdict]
 
 
-  def __init__(self, data: dict[str, Any], **steps: dict[str, jax.Array]):
+  def __init__(self, data: dict[str, Any], **steps: stepdict):
     super().__init__(data)
-    self.steps = {k: stepdict(v) for k, v in steps.items()}
+    self.steps = steps
 
 
   def tree_flatten(self) -> tuple:
@@ -96,23 +122,40 @@ class logdict(dict[str, Any]):
     return data_flat + steps_flat, (data_structure, steps_structure)
 
 
-  def tree_unflatten(self, aux_data: tuple) -> 'logdict':
+  @classmethod
+  def tree_unflatten(cls, structure: tuple, logs_flat) -> 'logdict':
     """
     Function that reconstructs the logdict from a flat list of data and steps.
     This is used to register the logdict as a pytree in JAX.
 
     Args:
-      aux_data (tuple): A tuple containing the flattened data and steps.
-        The first element is a flat list of data values, and the second element is a tuple
-        containing the structure of the data and steps.
+      structure (tuple): A tuple containing the structure of the data and steps.
+      logs_flat: A flat list of data values and steps.
     Returns:
       logdict: A new logdict instance containing the reconstructed data and steps.
-
     """
-    data_flat, steps_flat = aux_data
-    data = jax.tree_util.tree_unflatten(data_flat, self.data)
-    steps = jax.tree_util.tree_unflatten(steps_flat, self.steps)
-    return logdict(data, **steps)
+    data_structure, steps_structure = structure
+    data_flat = logs_flat[:data_structure.num_leaves]
+    steps_flat = logs_flat[data_structure.num_leaves:]
+    data = jax.tree_util.tree_unflatten(data_structure, data_flat)
+    steps = jax.tree_util.tree_unflatten(steps_structure, steps_flat)
+    return cls(data, **steps)
+
+
+  def __delitem__(self, key):
+    """
+    Deletes an item from the logdict.
+    This behaves like a standard dictionary, but also removes the corresponding step information.
+
+    Args:
+      key (str): The key of the item to delete.
+    Raises:
+      KeyError: If the key does not exist in the logdict.
+    """
+    super().__delitem__(key)
+    for step in self.steps.values():
+      if key in step:
+        del step[key]
 
 
   def __getattr__(self, item):
@@ -122,7 +165,7 @@ class logdict(dict[str, Any]):
 
 
   @property
-  def data(self):
+  def data(self) -> dict[str, Any]:
     """
     Returns:
       dict: The data stored in the logdict as a standard dictionary.
@@ -144,8 +187,16 @@ class logdict(dict[str, Any]):
     """
     if not isinstance(other, logdict):
       raise TypeError("can only merge with another logdict")
-    out = super().__or__(other)
-    out.steps = self.steps | other.steps
+    new_data = super().__or__(other)
+    new_steps = {}
+    for key in set(self.steps.keys()).union(other.steps.keys()):
+        if key in self.steps and key in other.steps:
+            new_steps[key] = self.steps[key] | other.steps[key]
+        elif key in self.steps:
+            new_steps[key] = self.steps[key]
+        elif key in other.steps:
+            new_steps[key] = other.steps[key]
+    return logdict(new_data, **new_steps)
 
 
   def __add__(self, other):
@@ -180,7 +231,6 @@ class logdict(dict[str, Any]):
       raise TypeError("Can only add another logdict")
     # iterate the keys and values side by side
     new_data = {}
-    new_steps = self.steps + other.steps
     for key in set(self.keys()).union(other.keys()):
       if key in self and key in other:
         new_data[key] = jnp.concatenate((self[key], other[key]))
@@ -188,7 +238,14 @@ class logdict(dict[str, Any]):
         new_data[key] = self[key]
       elif key in other:
         new_data[key] = other[key]
-    new_steps = self.steps + other.steps
+    new_steps = {}
+    for key in set(self.steps.keys()).union(other.steps.keys()):
+      if key in self.steps and key in other.steps:
+        new_steps[key] = self.steps[key] + other.steps[key]
+      elif key in self.steps:
+        new_steps[key] = self.steps[key]
+      elif key in other.steps:
+        new_steps[key] = other.steps[key]
 
     return logdict(new_data, **new_steps)
 
@@ -205,7 +262,19 @@ class logdict(dict[str, Any]):
     Whenever there are other steps, the reduction will be applied to them aswell.
     Alternatively you can set ``keep_steps`` to ``False`` to remove all other steps.
 
-    .. code-block:: python
+
+
+    Args:
+      mode (str | Callable): The reduction mode to apply. Can be one of "mean", "sum", or a custom function.
+      step (str): The step on which to apply the reduction. If None, the reduction is applied to all steps.
+      keep_steps (bool): Whether to keep the all other steps in the logdict.
+    Returns:
+      logdict: A new logdict containing the reduced data.
+
+    Examples:
+      The following example shows how to reduce the loss values by taking the mean over
+      the :string:`episode` step, while keeping the other steps intact.
+      First we create a logdict with some dummy data.
 
       >>> _, logs = lox.spool(f)()
       >>> logs["loss"]
@@ -214,6 +283,8 @@ class logdict(dict[str, Any]):
       [0, 1, 2, 3, 4, 5, 6, 7, 8]
       >>> loss.episode["loss"]
       [0, 0, 0, 1, 1, 1, 2, 2, 2]
+
+      Now we can reduce the loss values by taking the mean over the "mean" step.
 
       >>> logs = logs.reduce("mean", step="episode", keep_steps=True)
       >>> logs["loss"]
@@ -224,36 +295,14 @@ class logdict(dict[str, Any]):
       [0, 1, 2]
 
     This example shows how to reduce the loss values by taking the mean
-    over the "episode" step, while keeping the other steps intact.
-    Consequently the reduction is also applied to the "step" step, where 
+    over the :string:`episode` step, while keeping the other steps intact.
+    Consequently the reduction is also applied to the :string:`step` step, where 
     the mean is taken over all steps that belong to the same episode.
-    There are also other reduction modes available, such as "max" or a "min".
+    There are also other reduction modes available, such as :string:`max` or a "min".
     But note that these reduction modes can only be applied to scalar values,
     as they do not make sense for general arrays or pytrees.
-
-    Args:
-      mode (str | Callable): The reduction mode to apply. Can be one of "mean", "sum", or a custom function.
-      step (str): The step on which to apply the reduction. If None, the reduction is applied to all steps.
-      keep_steps (bool): Whether to keep the all other steps in the logdict.
-    Returns:
-      logdict: A new logdict containing the reduced data.
     """
 
 
 
     return self
-
-
-
-data = {
-    "loss": jnp.array([0.1, 0.2, 0.3]),
-    "x": jnp.array([1.0, 2.0, 3.0]),
-}
-logs = logdict(data, step={"loss": jnp.array([0, 1, 2]), "x": jnp.array([0, 1, 2])})
-print(logs.data)
-print(logs.step["x"])
-
-logs_flat, structure = jax.tree_util.tree_flatten(logs)
-print(structure)
-
-
