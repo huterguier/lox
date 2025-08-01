@@ -8,6 +8,7 @@ from jax.extend.core import ClosedJaxpr, Jaxpr
 
 from lox.primitive import lox_p
 from lox.util import flatten, is_hashable
+from lox.logdict import logdict
 
 AxisName = Hashable
 
@@ -15,7 +16,7 @@ AxisName = Hashable
 def tap(
     fun: Callable, 
     argnames: str | Iterable[str] | None = None,
-    callback: Callable | None = None,
+    callback: Callable[logdict, None] | None = None,
 ) -> Callable:
   """
   A function transformation that taps into the execution of a JAX function and prints the values of specified arguments. One can only ``tap`` into values that are logged with :func:`lox.log`.
@@ -52,6 +53,7 @@ def tap(
       static_argnums=static_argnums, 
       return_shape=True,
       argnames=argnames,
+      callback=callback,
     )(*args_flat)
     dynamic_args_flat = tuple(arg for arg in args_flat if not is_hashable(arg))
     out_structure = jax.tree.structure(out_shape)
@@ -68,6 +70,7 @@ def make_tapped_jaxpr(
     return_shape: bool = False,
     abstracted_axes: Any | None = None,
     argnames: str | Iterable[str] | None = None,
+    callback: Callable[logdict, None] | None = None,
 ) -> Callable[..., tuple[ClosedJaxpr, Any]]:
   """
   Creates a JAX function that returns a closed Jaxpr with the specified arguments tapped.
@@ -92,12 +95,20 @@ def make_tapped_jaxpr(
         return_shape=True,
         abstracted_axes=abstracted_axes,
     )(*args, **kwargs)
-    _ = tap_jaxpr(closed_jaxpr.jaxpr, argnames=argnames)
+    _ = tap_jaxpr(
+        closed_jaxpr.jaxpr, 
+        argnames=argnames, 
+        callback=callback if callback is not None else print
+    )
     return closed_jaxpr, out_shape
   return wrapped
 
 
-def tap_jaxpr(jaxpr: Jaxpr, argnames: Iterable[str] | None = None):
+def tap_jaxpr(
+    jaxpr: Jaxpr, 
+    callback: Callable[logdict, None],
+    argnames: Iterable[str] | None = None,
+):
   """
   Taps into a JAX Jaxpr and prints the values of specified arguments. Recurisvely traverses the Jaxpr to find and tap into `lox_p` primitives.
 
@@ -107,14 +118,12 @@ def tap_jaxpr(jaxpr: Jaxpr, argnames: Iterable[str] | None = None):
   Returns:
     bool: True if the Jaxpr was modified, False otherwise.
   """
-  def callback(structure, *vals):
-    def _callback(*vals):
-      data = jax.tree.unflatten(structure, vals)
-      print(data)
-    jax.debug.callback(
-        _callback,
-        *vals,
-    )
+
+  def wrapped_callback(structure, *logs_flat):
+    def _callback(*logs_flat):
+      logs = jax.tree.unflatten(structure, logs_flat)
+      callback(logs)
+    jax.debug.callback(_callback, *logs_flat)
 
   i = 0
   modified = False
@@ -124,42 +133,47 @@ def tap_jaxpr(jaxpr: Jaxpr, argnames: Iterable[str] | None = None):
 
     if eqn.primitive == lox_p:
       structure = eqn.params["structure"]
-      invars_data = jax.tree.unflatten(structure, eqn.invars)
-      if argnames is None:
-        invars_data_tapped = invars_data
-      else:
-        invars_data_tapped = {k: v for k, v in invars_data.items() if k in argnames}
-      invars_tapped, structure_tapped = jax.tree.flatten(invars_data_tapped)
-      avals_tapped = jax.tree.map(lambda var: var.aval, invars_tapped)
-      if avals_tapped:
-        print_jaxpr = jax.make_jaxpr(callback, static_argnums=(0,))(structure_tapped, *avals_tapped)
+      logs = jax.tree.unflatten(structure, eqn.invars)
+      if argnames is not None:
+        for k in logs:
+          if k not in argnames:
+            del logs[k]
+      logs_avals = jax.tree.map(lambda l: l.aval, logs)
+      logs_avals_flat, structure_avals = jax.tree.flatten(logs_avals)
+      if logs_avals:
+        print_jaxpr = jax.make_jaxpr(
+            wrapped_callback,
+            static_argnums=(0),
+        )(
+            structure_avals,
+            *logs_avals_flat, 
+        )
         jaxpr.eqns.insert(i, print_jaxpr.jaxpr.eqns[0])
-        jaxpr.eqns[i].invars = invars_tapped
+        jaxpr.eqns[i].invars = jax.tree.leaves(logs)
         i += 1
         modified = True
 
     elif eqn.primitive == jax.lax.scan_p:
-      modified |= tap_jaxpr(eqn.params["jaxpr"].jaxpr, argnames)
+      modified |= tap_jaxpr(eqn.params["jaxpr"].jaxpr, callback, argnames)
 
     elif eqn.primitive == jax.lax.cond_p:
       branches = eqn.params["branches"]
       for branch in branches:
-        modified |= tap_jaxpr(branch.jaxpr, argnames)
+        modified |= tap_jaxpr(branch.jaxpr, callback, argnames)
 
     elif eqn.primitive == jax.lax.while_p:
-      modified |= tap_jaxpr(eqn.params["cond_jaxpr"].jaxpr, argnames)
-      modified |= tap_jaxpr(eqn.params["body_jaxpr"].jaxpr, argnames)
+      modified |= tap_jaxpr(eqn.params["cond_jaxpr"].jaxpr, callback, argnames)
+      modified |= tap_jaxpr(eqn.params["body_jaxpr"].jaxpr, callback, argnames)
 
     elif eqn.primitive.name == "pjit":
-      call_jaxpr_modified = tap_jaxpr(eqn.params["jaxpr"], argnames)
-      if call_jaxpr_modified:
+      modified_call_jaxpr = tap_jaxpr(eqn.params["jaxpr"], callback, argnames)
+      if modified_call_jaxpr:
         eqn.primitive = jax.extend.core.primitives.call_p
         eqn.params = {"call_jaxpr": eqn.params["jaxpr"].jaxpr}
         modified = True
 
     elif eqn.primitive == jax.extend.core.primitives.call_p:
-      modified |= tap_jaxpr(eqn.params["call_jaxpr"])
+      modified |= tap_jaxpr(eqn.params["call_jaxpr"], callback, argnames)
 
     i += 1
-
-    return modified
+  return modified
