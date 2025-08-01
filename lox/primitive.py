@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from jax.extend import core
 from jax.interpreters import mlir, batching, ad
 from jax._src.debugging import DebugEffect
-from lox.logdict import logdict
+from lox.logdict import logdict, stepdict
 
 
 lox_p = core.Primitive("lox")
@@ -11,11 +11,12 @@ lox_p.multiple_results = True
 
 
 def log(data: dict, **steps: int) -> logdict:
-    # add leading dim to all arrays in the data dict
-    data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 0), data)
-    # create the steps dict such that each step contains a stepdict
-    steps = {k_step: logdict({k_data: jnp.array([v_step]) for k_data, _ in data.items()}) for k_step, v_step in steps.items()}
-    logs = logdict(data, **steps)
+    data_logdict = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 0), data)
+    steps_logdict = {
+        key_step: stepdict({key_data: value_step for key_data, _ in data.items()})
+        for key_step, value_step in steps.items()
+    }
+    logs = logdict(data_logdict, **steps_logdict)
     logs_flat, structure = jax.tree_util.tree_flatten(logs)
     _ = lox_p.bind(*logs_flat, structure=structure)
     return jax.tree_util.tree_unflatten(structure, logs_flat)
