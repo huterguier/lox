@@ -5,9 +5,9 @@ Lox is a loggin library for [JAX](https://docs.jax.dev/en/latest/) that provides
 
 ## What is Lox?
 
-Logging in JAX is notoriously difficult, and there are many reasons for that. JAX is designed to be fast and efficient. 
-
-There are 2 options for logging in Jax.
+Logging in JAX is notoriously tedious and cumbersome.
+JAX is purposefully designed to be a functional programming framework, which means that it does not have built-in support for side effects, such as logging.
+As a consequence one is left with 2 main options for logging in Jax.
 1. Using callbacks to log data. While this is the easiest most flexible way to log data, callbacks come with a cost. 
 Executing callbacks creates a significant overhead, which can, especially when done frequently, slow down execution tremendously.
 2. The second option is to treat the logs as a part of the computation graph. While this is the most efficient way to log data, it can be quite tedious to implement, as it
