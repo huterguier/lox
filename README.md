@@ -50,8 +50,3 @@ Lox can be installed via pip directly from the GitHub repository.
 ```bash
 pip install git+https://github.com/huterguier/lox
 ```
-
-z, logs = lox.spool(f)(3, 4)
-print("f(x, y)", z) #12
-print("Logs:", logs) #{"x": 3, "y": 4}
-```
