@@ -6,64 +6,42 @@
 
 Lox is a lightweight and flexible logging library for JAX that provides a simple interface for logging data during function execution.
 Logging is implemented with it's own primitive, which allows it to work seamlessly with JAX's built-in function transformations like `jit` or `vmap`.
-The basic logging functionality alone, however, does not provide any benefits over built-in callbacks.
-Lox is built around the idea of spooling, which allows you to capture logs generated during function execution and return them alongside the function's output.
+All you need to do is decorate your code with `lox.log` statements and Lox does the rest.
+Using JAX's intermediate function representation Lox can dynamically insert callbacks to log you data or collect the logs that would have been generated during the execution and return them as part of the output of you function.
 While it's obviously possible to implement this functionality yourself, Lox provides a simple and efficient way to do so without having to carry around boilerplate code in your functions.
 
 ```python
-import jax
-import lox
-
 def f(xs):
     lox.log({"xs": xs})
-    def scan_step(xs, x):
-        xs = xs + x
-        lox.log({"xs": carry, "x": x})
+    def scan_step(carry, x):
+        carry += x
+        lox.log({"carry": carry})
         return carry, x
-    lox.log({"xs": xs})
-    ys, _ = jax.lax.scan(scan_step, 0, xs)
+    y, _ = jax.lax.scan(scan_step, 0, xs)
     return ys
 
-xs = jnp.arange(3)
-ys, logs = lox.spool(f)(xs)
+xs = jnp.arange(5)
 ```
-The spooled version of `f` will return both the output of the function and a pytree of all logs generated during execution.
-In the example above, `logs` will have the following structure.
-```
-{
-    'x': Array([0, 1, 2], dtype=int32), 
-    'xs': Array([[0, 1, 2],
-                 [0, 1, 2],
-                 [0, 1, 2],
-                 [1, 2, 3],
-                 [3, 4, 5]], dtype=int32)
-}
+The first transformation, `lox.tap`, lets you "tap into" function execution by attaching a callback that receives logs as they're generated. It streams logs in real time, making it great for debugging or live monitoring.
+
+```python
+def callback(logs):
+    print("Logging: ", logs)
+y = lox.tap(f, callback=callback)(xs)
+>>> Logging: {"xs": [0, 1, 2]}
+>>> Logging: {"carry": 0}
+>>> Logging: {"carry": 1}
+>>> Logging: {"carry": 2}
 ```
 
-## Features
-
-### General Logging Utility
-- **`lox.log`**
-  Standard logging functionality. Deault behavior is logging the arguments to the console.
-  Leverages JAX's `jax.debug.callback` to enable logging inside jitted functions.
-
-### Function Spooling
-- **`lox.spool`**
-  Wraps a function so that it returns both its normal output and a pytree of the logs generated during execution.
-  Supports various primitivs like `scan`, `cond` or `pjit`·
-
-### Disabling Logging
-- **`lox.nolog`**
-  Wraps a function such that all logging is disabled entirely.
-  This is useful for performance-sensitive code where logging is not needed.
-
-### Support for Logging Frameworks
-- **`lox.wandb`**
-  Wraps [Weights & Biases](https://wandb.ai/) and makes them compatible with JAX's function transformations.
-  Most importantly it supports `vmap` to enable logging of multiple runs in parallel.
-
-- **`lox.neptune`**
-  Wraps [Neptune](https://neptune.ai/) and provides similar functionality to the Weights & Biases integration.
+The second transformation, `lox.spool`, "spools up" all logs during execution and returns them alongside the function's output. 
+This is especially useful when frequent callbacks would be too expensive. 
+For instance, instead of logging on every iteration, you can collect all logs for a training step and emit them in a single call.
+```python
+y, logs = lox.spool(f)(xs)
+print("Collected Logs: ", logs)
+>>>> Collected Logs: { "xs": [0, 1, 2], "carry": [[0, 1, 2]] }
+```
 
 ## Installation
 
@@ -72,46 +50,6 @@ Lox can be installed via pip directly from the GitHub repository.
 ```bash
 pip install git+https://github.com/huterguier/lox
 ```
-
-## Quick Start
-
-### General Logging Example
-
-```python
-import lox
-
-def f(x):
-    lox.log({"x": x})
-    def step(carry, x):
-        lox.log({"x": x})
-        return carry + x, None
-    return jax.lax.scan(step, x, jnp.arange(5))
-
-y = f(3) #{"x": 3}
-```
-
-### Logging in Jitted Functions
-
-```python
-import jax
-import lox
-
-@jax.jit
-def f(x):
-    lox.log({"x": x})
-    return x * x
-
-y = f(3) #{"x": 3}
-```
-
-### Function Spooling Example
-
-```python
-import lox
-
-def f(x, y):
-    lox.log({"x": x, "y": y})
-    return x * y
 
 z, logs = lox.spool(f)(3, 4)
 print("f(x, y)", z) #12
