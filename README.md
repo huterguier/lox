@@ -11,36 +11,43 @@ Using JAX's intermediate function representation Lox can dynamically insert call
 While it's obviously possible to implement this functionality yourself, Lox provides a simple and efficient way to do so without having to carry around boilerplate code in your functions.
 
 ```python
-def f(xs):
-    lox.log({"xs": xs})
-    def scan_step(carry, x):
-        carry += x
-        lox.log({"carry": carry})
-        return carry, x
-    y, _ = jax.lax.scan(scan_step, 0, xs)
-    return ys
+>>> import jax
+>>> import jax.numpy as jnp
+>>> import lox
 
-xs = jnp.arange(5)
+>>> def f(xs):
+...     lox.log({"xs": xs})
+...     def scan_step(carry, x):
+...         carry += x
+...         lox.log({"carry": carry})
+...         return carry, x
+...     y, _ = jax.lax.scan(scan_step, 0, xs)
+...     return y
+
+>>> xs = jnp.arange(3)
 ```
 The first transformation, `lox.tap`, lets you "tap into" function execution by attaching a callback that receives logs as they're generated. It streams logs in real time, making it great for debugging or live monitoring.
 
 ```python
-def callback(logs):
-    print("Logging: ", logs)
-y = lox.tap(f, callback=callback)(xs)
->>> Logging: {"xs": [0, 1, 2]}
->>> Logging: {"carry": 0}
->>> Logging: {"carry": 1}
->>> Logging: {"carry": 2}
+>>> def callback(logs):
+...     print("Logging:", logs)
+>>> y = lox.tap(f, callback=callback)(xs)
+Logging: {'xs': [0, 1, 2]}
+Logging: {'carry': 0}
+Logging: {'carry': 1}
+Logging: {'carry': 3}
 ```
 
 The second transformation, `lox.spool`, "spools up" all logs during execution and returns them alongside the function's output. 
 This is especially useful when frequent callbacks would be too expensive. 
 For instance, instead of logging on every iteration, you can collect all logs for a training step and emit them in a single call.
 ```python
-y, logs = lox.spool(f)(xs)
-print("Collected Logs: ", logs)
->>> Collected Logs: { "xs": [0, 1, 2], "carry": [[0, 1, 2]] }
+>>> y, logs = lox.spool(f)(xs)
+>>> print("Collected Logs:", logs)
+Collected Logs: {
+    'xs': [0, 1, 2],
+    'carry': [0, 1, 3]
+}
 ```
 
 ## Installation
