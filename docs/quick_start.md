@@ -34,3 +34,11 @@ function to either insert a callback or to collect the logs and return them as p
 
 ## Example
 
+The following example shows how to use Lox to log data in a JAX function.
+
+
+## Logger
+
+Lox provides a variety of loggers that can be used to write the logs to different backends.
+A logger can also be passed directly to `lox.spool`.
+Doing this will cause the logs to be written to the logger instead of being returned as part of the function output.

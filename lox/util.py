@@ -48,12 +48,6 @@ def string(s):
   return String(value)
 
 
-@jax.tree_util.register_dataclass
-@dataclass
-class ldict(dict):
-  pass
-
-
 def is_hashable(arg):
   """
   Check if an argument is hashable.
@@ -72,7 +66,8 @@ def is_hashable(arg):
 
 def flatten(fun: Callable, structure: PyTreeDef) -> Callable:
   """
-    Transforms a function to accept a single flat argument list.
+    Transforms a function to accept a single flat argument list,
+    where the arguments are flattened according to the provided structure.
 
     Args:
         fun (Callable): The function to be transformed.
