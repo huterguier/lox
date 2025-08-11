@@ -44,10 +44,7 @@ For instance, instead of logging on every iteration, you can collect all logs fo
 ```python
 >>> y, logs = lox.spool(f)(xs)
 >>> print("Collected Logs:", logs)
-Collected Logs: {
-    'xs': [0, 1, 2],
-    'carry': [0, 1, 3]
-}
+Collected Logs: {'xs': [0, 1, 2], 'carry': [0, 1, 3]}
 ```
 
 ## Installation
