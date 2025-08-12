@@ -17,11 +17,11 @@ While it's obviously possible to implement this functionality yourself, Lox prov
 
 >>> def f(xs):
 ...     lox.log({"xs": xs})
-...     def scan_step(carry, x):
+...     def step(carry, x):
 ...         carry += x
 ...         lox.log({"carry": carry})
 ...         return carry, x
-...     y, _ = jax.lax.scan(scan_step, 0, xs)
+...     y, _ = jax.lax.scan(step, 0, xs)
 ...     return y
 
 >>> xs = jnp.arange(3)
