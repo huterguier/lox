@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-import jax.experimental
 import pickle
 import os
 from typing import Any
@@ -8,7 +7,12 @@ from typing import Any
 import lox
 
 
-def save(data: dict[str, Any], path: lox.String, mode: str='a', key: jax.Array = None):
+def save(
+    data: dict[str, Any], 
+    path: lox.String, 
+    mode: str='a', 
+    key: jax.Array | None = None
+):
   """
   Save data to a specified path using a callback function. Each entry in the data dictionary is saved as a separate file with the key as the filename.
   Args:
@@ -22,7 +26,8 @@ def save(data: dict[str, Any], path: lox.String, mode: str='a', key: jax.Array =
       raise ValueError("Mode must be 'a', 'w', or 'x'.")
     path = str(lox.String(path))
     if key is not None:
-      path = path + '/' + f"{key[0]}{key[1]}"
+      key_data = jax.random.key_data(key)
+      path = path + '/' + f"{key_data[0]}{key_data[1]}"
 
     if mode == 'a':
       for key in data:
