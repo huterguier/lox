@@ -12,12 +12,11 @@ from lox.logdict import logdict
 
 AxisName = Hashable
 
-AxisName = Hashable
 
 def tap(
     fun: Callable, 
+    callback: Callable[[logdict], None] | None = None,
     argnames: str | Iterable[str] | None = None,
-    callback: Callable[logdict, None] | None = None,
 ) -> Callable:
   """
   A function transformation that taps into the execution of a JAX function and prints the values of specified arguments. One can only ``tap`` into values that are logged with :func:`lox.log`.
@@ -32,7 +31,7 @@ def tap(
     >>>   x = lox.log({"x": x, "y": y})
     >>>   return x + y, x * y
     >>> x, y = 1.0, 2.0
-    >>> y = lox.tap(f, argnames=["y"], callback=callback)(x, y)
+    >>> y = lox.tap(f, callback=callback, argnames=["y"])(x, y)
     {"y": 2.0}
 
   Note that this transformation can introduce a significant overhead, especially if the function is called frequently or with large inputs. It is recommended to use this transformation only for debugging purposes and to remove it before any performance-critical execution.
@@ -40,8 +39,8 @@ def tap(
 
   Args:
     fun: The function you want to tap into.
-    argnames: A string or iterable of strings specifying the names of the arguments to be printed. If None, all arguments will be tapped.
     callback: A callback function to be called with the tapped values. If None, the default callback will be used to display the values.
+    argnames: A string or iterable of strings specifying the names of the arguments to be printed. If None, all arguments will be tapped.
   Returns:
     Callable: A wrapped function that executes the original function and prints the tapped values.
   """
@@ -53,8 +52,8 @@ def tap(
       flatten(fun, structure),
       static_argnums=static_argnums, 
       return_shape=True,
-      argnames=argnames,
       callback=callback,
+      argnames=argnames,
     )(*args_flat)
     dynamic_args_flat = tuple(arg for arg in args_flat if not is_hashable(arg))
     out_structure = jax.tree_util.tree_structure(out_shape)
@@ -70,8 +69,8 @@ def make_tapped_jaxpr(
     axis_env: Sequence[tuple[AxisName, int]] | None = None,
     return_shape: bool = False,
     abstracted_axes: Any | None = None,
+    callback: Callable[[logdict], None] | None = None,
     argnames: str | Iterable[str] | None = None,
-    callback: Callable[logdict, None] | None = None,
 ) -> Callable[..., tuple[ClosedJaxpr, Any]]:
   """
   Creates a JAX function that returns a closed Jaxpr with the specified arguments tapped.
@@ -82,6 +81,7 @@ def make_tapped_jaxpr(
       axis_env (Sequence[tuple[AxisName, int]] | None): The axis environment for the jaxpr.
       return_shape (bool): Whether to return the shape of the output.
       abstracted_axes (Any | None): Abstracted axes for the jaxpr.
+      callback (Callable[[logdict], None] | None): A callback function to be called with the tapped values. If None, the default callback will be used to display the values.
       argnames (str | Iterable[str] | None): The names of the arguments to be tapped. If None, all arguments will be tapped.
   Returns:
       Callable[..., ClosedJaxpr | tuple[ClosedJaxpr, Any]]: A wrapped function that returns the jaxpr and logs.
@@ -98,8 +98,8 @@ def make_tapped_jaxpr(
     )(*args, **kwargs)
     _ = tap_jaxpr(
         closed_jaxpr.jaxpr, 
+        callback=callback if callback is not None else print,
         argnames=argnames, 
-        callback=callback if callback is not None else print
     )
     return closed_jaxpr, out_shape
   return wrapped
@@ -107,7 +107,7 @@ def make_tapped_jaxpr(
 
 def tap_jaxpr(
     jaxpr: Jaxpr, 
-    callback: Callable[logdict, None],
+    callback: Callable[[logdict], None],
     argnames: Iterable[str] | None = None,
 ):
   """
@@ -115,6 +115,7 @@ def tap_jaxpr(
 
   Args:
     jaxpr (Jaxpr): The Jaxpr to be tapped.
+    callback (Callable[[logdict], None]): A callback function to be called with the tapped values. It should accept a single argument, which is a `logdict` containing the tapped values.
     argnames (Iterable[str] | None): An iterable of argument names to be tapped. If None, all arguments will be tapped.
   Returns:
     bool: True if the Jaxpr was modified, False otherwise.
