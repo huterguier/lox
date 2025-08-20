@@ -4,6 +4,8 @@ import jax.experimental
 import pickle
 import os
 from typing import Any
+from lox.logger import Logger, LoggerState
+from dataclasses import dataclass
 
 import lox
 
@@ -69,6 +71,36 @@ def save(data: dict[str, Any], path: lox.String, mode: str='a', key: jax.Array =
     mode=mode,
     key=key
   )
+
+
+@dataclass
+class SaveLoggerState(LoggerState):
+  path: lox.String
+  key: jax.Array
+
+
+class SaveLogger(Logger[SaveLoggerState]):
+  """
+  Logger for saving data to a specified path using JAX's experimental IO callback.
+  """
+
+  def __init__(self, root: str):
+    self.root = root
+
+  def init(self, path: lox.String, key: jax.Array) -> SaveLoggerState:
+    return SaveLoggerState(
+      path=lox.String(self.root + '/' + str(path)),
+      key=key
+    )
+
+  def log(self, logger_state: SaveLoggerState, logs: lox.logdict) -> None:
+    save(logs, logger_state.path, key=logger_state.key)
+
+  def tap(self, logger_state: SaveLoggerState, f: Any) -> Any:
+    return lox.tap(f)(logger_state.path)
+
+  def close(self, logger_state: SaveLoggerState):
+    pass
 
 
 # def load(path, result_shape_dtypes):

@@ -1,6 +1,7 @@
 import lox
 from functools import wraps
 from dataclasses import dataclass
+from typing import TypeVar, Generic
 from typing import Callable
 
 
@@ -8,52 +9,60 @@ from typing import Callable
 class LoggerState:
     pass
 
+LoggerStateT = TypeVar("LoggerStateT", bound=LoggerState)
 
-class Logger:
 
-  def init(self, *args, **kwargs) -> LoggerState:
+class Logger(Generic[LoggerStateT]):
+
+  def init(self, *args, **kwargs) -> LoggerStateT:
     raise NotImplemented
 
-  def log(self, logger_state: LoggerState, logs: lox.logdict):
+  def log(self, logger_state: LoggerStateT, logs: lox.logdict) -> None:
     raise NotImplemented
 
-  def spool(self, logger_state: LoggerState, f: Callable) -> Callable:
+  def spool(self, logger_state: LoggerStateT, f: Callable) -> Callable:
+    """
+    Wraps a function to log its output.
+
+    Args:
+      logger_state: The state of the logger.
+      f: The function to be wrapped.
+
+    Returns:
+      A wrapped function that logs its output.
+    """
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+      y, logs = lox.spool(f)(*args, **kwargs)
+      self.log(logger_state, logs)
+      return y
+    return wrapped
+
+  def tap(self, logger_state: LoggerStateT, f: Callable) -> Callable:
     raise NotImplemented
 
-  def tap(self, logger_state: LoggerState, f: Callable) -> Callable:
-    raise NotImplemented
-
-  def close(self, logger_state: LoggerState):
+  def close(self, logger_state: LoggerStateT):
     raise NotImplemented
 
 
 @dataclass
 class MultiLoggerState(LoggerState):
-  logger_states: list[LoggerState]
+  logger_states: tuple[LoggerState, ...]
 
 
-class MultiLogger(Logger):
+class MultiLogger(Logger[MultiLoggerState]):
   loggers: list
 
   def __init__(self, loggers):
     self.loggers = loggers
 
   def init(self, *args, **kwargs) -> MultiLoggerState:
-    logger_states = [logger.init(*args, **kwargs) for logger in self.loggers]
+    logger_states = tuple(logger.init(*args, **kwargs) for logger in self.loggers)
     return MultiLoggerState(logger_states=logger_states)
 
-  def log(self, logger_state: LoggerState, logs: lox.logdict):
-    for logger in self.loggers:
-      logger.log(logger_state, logs)
-
-  def spool(self, logger_state: MultiLoggerState, f: Callable) -> Callable:
-    @wraps(f)
-    def wrapped(*args, **kwargs):
-      y, logs = lox.spool(f)(*args, **kwargs)
-      for logger in self.loggers:
-        logger.log(logger_state, logs)
-      return y
-    return wrapped
+  def log(self, logger_state: MultiLoggerState, logs: lox.logdict):
+    for sub_logger, sub_logger_state in zip(self.loggers, logger_state.logger_states):
+      sub_logger.log(sub_logger_state, logs)
 
   def tap(self, logger_state: LoggerState, f: Callable) -> Callable:
     @wraps(f)
@@ -63,6 +72,7 @@ class MultiLogger(Logger):
         f_tapped = logger.tap(logger_state, f_tapped)
       y = f_tapped(*args, **kwargs)
       return y
+    return wrapped
 
   def close(self, logger_state):
     raise NotImplemented
