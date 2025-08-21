@@ -1,106 +1,111 @@
 import jax
 import jax.numpy as jnp
-import jax.experimental
 import pickle
 import os
-from typing import Any
+from typing import Any, Optional, Callable
 from lox.logger import Logger, LoggerState
 from dataclasses import dataclass
 
 import lox
 
 
-def save(data: dict[str, Any], path: lox.String, mode: str='a', key: jax.Array = None):
-  """
-  Save data to a specified path using a callback function. Each entry in the data dictionary is saved as a separate file with the key as the filename.
-  Args:
-    data (dict[str, Any]): The data to be saved.
-    path (lox.String): The path where the data will be saved.
-    mode (str): The mode in which to open the file ('a' for append, 'w' for write, 'x' for exclusive creation).
-    key (jax.Array, optional): An optional key to differentiate data when saving.
-  """
-  def callback(data: dict[str, Any], path, mode, key):
-    if mode not in ['a', 'w', 'x']:
-      raise ValueError("Mode must be 'a', 'w', or 'x'.")
-    path = str(lox.String(path))
+def save_callback(
+    data: dict[str, Any],
+    path: lox.String | str,
+    mode: str = "a",
+    key: Optional[jax.Array] = None,
+):
+    if mode not in ["a", "w", "x"]:
+        raise ValueError("Mode must be 'a', 'w', or 'x'.")
+    if isinstance(path, lox.String):
+        path = str(lox.String(path))
     if key is not None:
-      path = path + '/' + f"{key[0]}{key[1]}"
+        key_data = jax.random.key_data(key)
+        path = path + "/" + f"{key_data[0]}{key_data[1]}"
 
-    if mode == 'a':
-      for key in data:
-        file = path + '/' + key + '.pkl'
-        if os.path.exists(file):
-          with open(file, 'rb') as f:
-            value = pickle.load(f)
-          value = jax.tree_util.tree_map(
-            lambda v, d: jnp.concatenate([jnp.atleast_1d(v), jnp.atleast_1d(d)]),
-            value,
-            data[key]
-          )
-          with open(file, 'wb') as f:
-            pickle.dump(value, f)
-        else:
-          if not os.path.exists(path):
-            os.makedirs(path)
-          with open(file, 'wb') as f:
-            pickle.dump(data[key], f)
+    if mode == "a":
+        for k in data:
+            file = path + "/" + k + ".pkl"
+            if os.path.exists(file):
+                with open(file, "rb") as f:
+                    value = pickle.load(f)
+                value = jax.tree_util.tree_map(
+                    lambda v, d: jnp.concatenate(
+                        [jnp.atleast_1d(v), jnp.atleast_1d(d)]
+                    ),
+                    value,
+                    data[k],
+                )
+                with open(file, "wb") as f:
+                    pickle.dump(value, f)
+            else:
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                with open(file, "wb") as f:
+                    pickle.dump(data[k], f)
 
-    elif mode == 'w':
-      for key in data:
-        file = path + '/' + key + '.pkl'
-        if not os.path.exists(path):
-          os.makedirs(path)
-        with open(file, 'wb') as f:
-          pickle.dump(data[key], f)
+    elif mode == "w":
+        for k in data:
+            file = path + "/" + k + ".pkl"
+            if not os.path.exists(path):
+                os.makedirs(path)
+            with open(file, "wb") as f:
+                pickle.dump(data[k], f)
 
-    elif mode == 'x':
-      if os.path.exists(path):
-        raise FileExistsError(f"Path {path} already exists.")
-      for key in data:
-        file = path + '/' + key + '.pkl'
-        if not os.path.exists(path):
-          os.makedirs(path)
-        with open(file, 'wb') as f:
-          pickle.dump(data[key], f)
+    elif mode == "x":
+        if os.path.exists(path):
+            raise FileExistsError(f"Path {path} already exists.")
+        for k in data:
+            file = path + "/" + k + ".pkl"
+            if not os.path.exists(path):
+                os.makedirs(path)
+            with open(file, "wb") as f:
+                pickle.dump(data[k], f)
 
-  jax.debug.callback(
-    callback,
-    ordered=True,
-    data=data,
-    path=path.value,
-    mode=mode,
-    key=key
-  )
+
+def save(
+    data: dict[str, Any],
+    path: lox.String | str,
+    mode: str = "a",
+    key: Optional[jax.Array] = None,
+):
+    """
+    Save data to a specified path using a callback function. Each entry in the data dictionary is saved as a separate file with the key as the filename.
+    Args:
+      data (dict[str, Any]): The data to be saved.
+      path (lox.String): The path where the data will be saved.
+      mode (str): The mode in which to open the file ('a' for append, 'w' for write, 'x' for exclusive creation).
+      key (jax.Array, optional): An optional key to differentiate data when saving.
+    """
+    jax.debug.callback(
+        save_callback, ordered=True, data=data, path=path, mode=mode, key=key
+    )
 
 
 @dataclass
 class SaveLoggerState(LoggerState):
-  path: lox.String
-  key: jax.Array
+    key: jax.Array
 
 
 class SaveLogger(Logger[SaveLoggerState]):
-  """
-  Logger for saving data to a specified path using JAX's experimental IO callback.
-  """
+    """
+    Logger for saving data to a specified path using JAX's experimental IO callback.
+    """
 
-  def __init__(self, root: str):
-    self.root = root
+    def __init__(self, path: str):
+        self.path = path
 
-  def init(self, path: lox.String, key: jax.Array) -> SaveLoggerState:
-    return SaveLoggerState(
-      path=lox.String(self.root + '/' + str(path)),
-      key=key
-    )
+    def init(self, key: jax.Array) -> SaveLoggerState:
+        return SaveLoggerState(path=lox.String(path)), key=key)
 
-  def log(self, logger_state: SaveLoggerState, logs: lox.logdict) -> None:
-    save(logs, logger_state.path, key=logger_state.key)
+    def log(self, logger_state: SaveLoggerState, logs: lox.logdict) -> None:
+        save(logs, logger_state.path, key=logger_state.key)
 
-  def tap(self, logger_state: SaveLoggerState, f: Any) -> Any:
-    return lox.tap(f)(logger_state.path)
+    def tap(self, logger_state: SaveLoggerState, f: Callable) -> Callable:
+        def callback(logs: lox.logdict):
+            save(logs, logger_state.path, key=logger_state.key)
 
-  def close(self, logger_state: SaveLoggerState):
-    pass
+        return lox.tap(f, callback=callback)
 
 
 # def load(path, result_shape_dtypes):
