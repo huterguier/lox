@@ -20,7 +20,11 @@ class Logger(Generic[LoggerStateT]):
     def log(self, logger_state: LoggerStateT, logs: lox.logdict) -> None:
         raise NotImplemented
 
-    def spool(self, logger_state: LoggerStateT, f: Callable) -> Callable:
+    def spool(
+        self, 
+        logger_state: LoggerStateT, 
+        f: Callable
+    ) -> Callable:
         """
         Wraps a function to log its output.
 
@@ -65,13 +69,13 @@ class MultiLogger(Logger[MultiLoggerState]):
         ):
             sub_logger.log(sub_logger_state, logs)
 
-    def tap(self, logger_state: LoggerState, f: Callable) -> Callable:
-        @wraps(f)
-        def wrapped(*args, **kwargs):
-            f_tapped = f
-            for logger in self.loggers:
-                f_tapped = logger.tap(logger_state, f_tapped)
-            y = f_tapped(*args, **kwargs)
-            return y
-
-        return wrapped
+    def tap(
+        self, 
+        logger_state: MultiLoggerState, 
+        f: Callable, 
+        argnames: Sequence[str] = (),
+    ) -> Callable:
+        f_tapped = f
+        for sub_logger, sub_logger_state in zip(self.loggers, logger_state.logger_states):
+            f_tapped = sub_logger.tap(sub_logger_state, f_tapped, argnames=argnames)
+        return f_tapped

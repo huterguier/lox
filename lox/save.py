@@ -96,14 +96,14 @@ class SaveLogger(Logger[SaveLoggerState]):
         self.path = path
 
     def init(self, key: jax.Array) -> SaveLoggerState:
-        return SaveLoggerState(path=lox.String(path)), key=key)
+        return SaveLoggerState(key=key)
 
     def log(self, logger_state: SaveLoggerState, logs: lox.logdict) -> None:
-        save(logs, logger_state.path, key=logger_state.key)
+        save(logs, self.path, key=logger_state.key)
 
     def tap(self, logger_state: SaveLoggerState, f: Callable) -> Callable:
         def callback(logs: lox.logdict):
-            save(logs, logger_state.path, key=logger_state.key)
+            save_callback(logs, self.path, key=logger_state.key)
 
         return lox.tap(f, callback=callback)
 
