@@ -4,6 +4,7 @@ from .primitive import log
 from .util import String, string
 from .save import save
 from .logdict import logdict
+from .logger import Logger, LoggerState, MultiLogger
 import lox.wandb as wandb
 
 __all__ = [
