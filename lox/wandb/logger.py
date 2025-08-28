@@ -1,5 +1,5 @@
 import jax
-import lox
+import lox.wandb
 from dataclasses import dataclass
 from typing import Callable, Optional
 from lox.logger import Logger, LoggerState
