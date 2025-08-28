@@ -11,17 +11,33 @@ from typing import Optional
 
 def log(
     run: Run,
-    data: dict[str, jax.Array],
-    step: Optional[int] = None,
-    commit: Optional[bool] = None,
+    logs: lox.logdict,
 ):
-    def callback(id, data, step, commit):
+    def callback(id, logs):
         id = str(lox.String(id))
         run = runs[id]
-        run.log(data, step=step, commit=commit)
+        if "step" in logs.steps:
+            ordered_data = {}
+            for k, vs in logs.items():
+                steps = logs.steps["step"]
+                if k not in steps:
+                    raise ValueError(f"Either all or none of the keys must have steps. Key {k} is missing steps.")
+                for v, step in zip(vs, steps[k]):
+                    step = int(step)
+                    if step not in ordered_data:
+                        ordered_data[step] = {k: v}
+                    else:
+                        ordered_data[step] |= {k: v}
+            for step in sorted(ordered_data.keys()):
+                run.log(ordered_data[step], step=step)
+        else:
+            leaves = jax.tree.leaves(logs)
+            assert all([len(leaf) == len(leaves[0]) for leaf in leaves])
+            for i in range(len(leaves[0])):
+                run.log(jax.tree.map(lambda l: l[i], logs))
 
     jax.debug.callback(
-        callback, ordered=True, id=run.id, data=data, step=step, commit=commit
+        callback, ordered=True, id=run.id, logs=logs
     )
     return
 

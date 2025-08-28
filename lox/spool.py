@@ -397,31 +397,3 @@ def spool_call_p(jaxpr: Jaxpr, eqn: JaxprEqn) -> logdict:
     )
     eqn.outvars.extend(jax.tree_util.tree_leaves(logs_eqn))
     return logs_eqn
-
-
-from .primitive import log
-
-
-def f(xs):
-    def step(carry, x):
-        log({"x": x})
-        x = jax.lax.cond(x > 0, true_fun, false_fun, x)
-        return carry + x, carry + x
-
-    def true_fun(x):
-        log({"x": x - 1})
-        return x + 1
-
-    def false_fun(x):
-        log({"x": x + 1})
-        return x - 1
-
-    carry = 0
-    x = jax.lax.scan(step, carry, xs)
-    log({"x": carry})
-    return x
-
-
-x = jnp.array([1, 2, 3])
-y, logs = spool(f)(x)
-print(logs)

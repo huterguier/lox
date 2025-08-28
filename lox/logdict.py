@@ -11,9 +11,8 @@ class stepdict(dict[str, jax.Array]):
 
     def __init__(self, data: dict, **kwargs):
         super().__init__(data)
-        self.steps = {}
         for key, value in kwargs.items():
-            self.steps[key] = jnp.asarray(value)
+            self[key] = jnp.asarray(value)
 
     def __getattr__(self, item):
         if item in self:
@@ -45,7 +44,7 @@ class stepdict(dict[str, jax.Array]):
                 new_steps[key] = other[key]
         return stepdict(new_steps)
 
-    def slice(
+    def _slice(
         self,
         start: int | None = None,
         stop: int | None = None,
@@ -62,6 +61,26 @@ class stepdict(dict[str, jax.Array]):
         """
         return stepdict({k: v[start:stop:step] for k, v in self.items()})
 
+    class _SliceProxy:
+        def __init__(self, stepdict: "stepdict"):
+            self.stepdict = stepdict
+
+        def __getitem__(self, key: slice) -> "stepdict":
+            if not isinstance(key, slice):
+                raise TypeError("SliceProxy only supports slicing with slice objects.")
+            return self.stepdict._slice(key.start, key.stop, key.step)
+
+    @property
+    def slice(self) -> "_SliceProxy":
+        """
+        Provides a convenient interface to slice the stepdict.
+        This allows to slice the stepdict using the standard slicing syntax.
+
+        Returns:
+          _SliceProxy: A proxy object that allows slicing the stepdict.
+        """
+        return self._SliceProxy(self)
+
     def tree_flatten(self) -> tuple:
         """
         Flattens the stepdict into a flat list of values.
@@ -70,7 +89,7 @@ class stepdict(dict[str, jax.Array]):
         Returns:
           tuple: A tuple containing the flattened values and the structure of the stepdict.
         """
-        return jax.tree_util.tree_flatten(self)
+        return jax.tree_util.tree_flatten(dict(self))
 
     @classmethod
     def tree_unflatten(cls, structure, steps_flat) -> "stepdict":
@@ -331,7 +350,7 @@ class logdict(dict[str, Any]):
         """
         return logdict(
             {k: jax.tree.map(lambda x: x[start:stop:step], v) for k, v in self.items()},
-            **{k: v.slice(start, stop, step) for k, v in self.steps.items()},
+            **{k: v.slice[start:stop:step] for k, v in self.steps.items()},
         )
 
     class _SliceProxy:

@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from jax._src.debugging import DebugEffect
 from jax.extend import core
 from jax.interpreters import ad, batching, mlir
+from typing import Any
 
 from lox.logdict import logdict, stepdict
 
@@ -10,7 +11,7 @@ lox_p = core.Primitive("lox")
 lox_p.multiple_results = True
 
 
-def log(data: dict, **steps: int) -> logdict:
+def log(data: dict[str, Any], **steps: int) -> logdict:
     """
     Fundamental logging primitive for Lox.
     This primitive creates a logdict for a single data point and associates it with the provided steps.
@@ -36,6 +37,7 @@ def log(data: dict, **steps: int) -> logdict:
     logs = logdict(data_logdict, **steps_logdict)
     logs_flat, structure = jax.tree_util.tree_flatten(logs)
     _ = lox_p.bind(*logs_flat, structure=structure)
+    print(structure)
     return jax.tree_util.tree_unflatten(structure, logs_flat)
 
 

@@ -23,18 +23,7 @@ class WandbLogger(Logger[WandbLoggerState]):
 
     def log(self, logger_state: WandbLoggerState, logs: lox.logdict):
         run = logger_state.run
-        if "step" in logs.steps:
-            for k, vs in logs.items():
-                steps = logs.steps["step"]
-                for v, step in zip(vs, steps):
-                    lox.wandb.log(run, {k: v})
-        else:
-            leaves, structure = jax.tree.flatten(logs)
-            assert all([len(leaf) == len(leaves[0]) for leaf in leaves])
-            for i in range(len(leaves[0])):
-                lox.wandb.log(
-                    run, jax.tree.unflatten(structure, [leaf[i] for leaf in leaves])
-                )
+        lox.wandb.log(run, logs)
 
     def tap(self, logger_state: WandbLoggerState, f: Callable) -> Callable:
         def callback(logs: lox.logdict):

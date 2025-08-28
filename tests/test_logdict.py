@@ -7,14 +7,32 @@ import lox
 
 class LogdictTest(parameterized.TestCase):
     def test_or(self):
-        data = {
-            "x": jax.random.normal(
-        }
+        def f(xs):
+            def step(carry, x):
+                lox.log({"x": x, "carry": carry})
+                return carry + x, carry
 
-        logs1 = lox.log(
+            return jax.lax.scan(step, 0, xs)
 
-        assert jnp.equal(logs["x"], xs).all()
-        assert jnp.equal(logs["carry"], ys[1]).all()
+        xs = jnp.arange(100)
+        _, logs = lox.spool(f)(xs)
+
+
+    def test_slice(self):
+        def f(xs):
+            def step(carry, x):
+                lox.log({"x": x, "carry": carry}, step=x)
+                return carry + x, carry
+
+            return jax.lax.scan(step, 0, xs)
+
+        xs = jnp.arange(100)
+        _, logs = lox.spool(f)(xs)
+        print(logs.step)
+        logs_sliced = logs.slice[::10]
+        print(logs_sliced)
+        print(logs_sliced.step)
+        assert logs_sliced["x"].shape[0] == 10
 
 
     def test_getattr(self):

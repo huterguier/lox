@@ -22,8 +22,8 @@ class Logger(Generic[LoggerStateT]):
 
     def spool(
         self,
-        logger_state: LoggerStateT,
         f: Callable,
+        logger_state: LoggerStateT,
         keep_logs: bool = False,
         interval: Optional[int] = None,
         reduce: Optional[str] = None,
