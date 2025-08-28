@@ -1,7 +1,7 @@
 import lox
 from functools import wraps
 from dataclasses import dataclass
-from typing import TypeVar, Generic, Callable, Sequence
+from typing import TypeVar, Generic, Callable, Sequence, Optional
 
 
 @dataclass
@@ -21,16 +21,22 @@ class Logger(Generic[LoggerStateT]):
         raise NotImplemented
 
     def spool(
-        self, 
-        logger_state: LoggerStateT, 
-        f: Callable
+        self,
+        logger_state: LoggerStateT,
+        f: Callable,
+        keep_logs: bool = False,
+        interval: Optional[int] = None,
+        reduce: Optional[str] = None,
     ) -> Callable:
         """
         Wraps a function to log its output.
 
         Args:
-          logger_state: The state of the logger.
-          f: The function to be wrapped.
+            logger_state: The state of the logger.
+            f: The function to be wrapped.
+            keep_logs: Whether to keep all logs or just the reduced value.
+            interval: The interval at which to log.
+            reduce: The reduction method to apply to the logs.
 
         Returns:
           A wrapped function that logs its output.
@@ -38,13 +44,23 @@ class Logger(Generic[LoggerStateT]):
 
         @wraps(f)
         def wrapped(*args, **kwargs):
-            y, logs = lox.spool(f)(*args, **kwargs)
+            y, logs = lox.spool(
+                f,
+                keep_logs=keep_logs,
+                interval=interval,
+                reduce=reduce,
+            )(*args, **kwargs)
             self.log(logger_state, logs)
             return y
 
         return wrapped
 
-    def tap(self, logger_state: LoggerStateT, f: Callable) -> Callable:
+    def tap(
+        self,
+        logger_state: LoggerStateT,
+        f: Callable,
+        argnames: Optional[Sequence[str]] = None,
+    ) -> Callable:
         raise NotImplemented
 
 
@@ -70,12 +86,14 @@ class MultiLogger(Logger[MultiLoggerState]):
             sub_logger.log(sub_logger_state, logs)
 
     def tap(
-        self, 
-        logger_state: MultiLoggerState, 
-        f: Callable, 
-        argnames: Sequence[str] = (),
+        self,
+        logger_state: MultiLoggerState,
+        f: Callable,
+        argnames: Optional[Sequence[str]] = None,
     ) -> Callable:
         f_tapped = f
-        for sub_logger, sub_logger_state in zip(self.loggers, logger_state.logger_states):
+        for sub_logger, sub_logger_state in zip(
+            self.loggers, logger_state.logger_states
+        ):
             f_tapped = sub_logger.tap(sub_logger_state, f_tapped, argnames=argnames)
         return f_tapped

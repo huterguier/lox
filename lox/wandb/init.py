@@ -4,21 +4,24 @@ import jax.experimental
 import wandb
 from lox.wandb.run import Run
 import lox
-from .runs import runs
+from .run import runs
 from functools import partial
+from typing import Optional
 
 
-def log(run: Run, data, **kwargs):
-    def callback(id, data):
+def log(
+    run: Run,
+    data: dict[str, jax.Array],
+    step: Optional[int] = None,
+    commit: Optional[bool] = None,
+):
+    def callback(id, data, step, commit):
         id = str(lox.String(id))
         run = runs[id]
-        run.log(data, **kwargs)
+        run.log(data, step=step, commit=commit)
 
     jax.debug.callback(
-        callback, 
-        ordered=True, 
-        id=run.id, 
-        data=data
+        callback, ordered=True, id=run.id, data=data, step=step, commit=commit
     )
     return
 
@@ -28,7 +31,8 @@ def init(key, **kwargs):
         for k, v in kwargs.items():
             if isinstance(v, jax.Array):
                 kwargs[k] = str(lox.String(v))
-        kwargs["name"] = kwargs["name"] + f"{key[0]}{key[1]}"
+        if "name" in kwargs:
+            kwargs["name"] = kwargs["name"] + f"{key[0]}{key[1]}"
 
         run = wandb.init(reinit="create_new", **kwargs)
         runs[run.id] = run
@@ -44,10 +48,10 @@ def init(key, **kwargs):
         if isinstance(v, str):
             kwargs[k] = lox.string(v).value
     id = jax.experimental.io_callback(
-        callback, 
+        callback,
         result_shape_dtypes=jax.ShapeDtypeStruct((lox.util.LENGTH,), jnp.uint8),
         key=key,
-        **kwargs
+        **kwargs,
     )
 
     return Run(id=id)
@@ -59,9 +63,5 @@ def finish(run: Run):
         run = runs[id]
         run.finish()
 
-    jax.debug.callback(
-        callback, 
-        ordered=True, 
-        id=run.id
-    )
+    jax.debug.callback(callback, ordered=True, id=run.id)
     return

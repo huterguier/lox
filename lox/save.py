@@ -21,7 +21,8 @@ def save_callback(
         path = str(lox.String(path))
     if key is not None:
         key_data = jax.random.key_data(key)
-        path = path + "/" + f"{key_data[0]}{key_data[1]}"
+        folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
+        path = path + "/" + folder_name
 
     if mode == "a":
         for k in data:
@@ -96,6 +97,17 @@ class SaveLogger(Logger[SaveLoggerState]):
         self.path = path
 
     def init(self, key: jax.Array) -> SaveLoggerState:
+        def callback(key):
+            key_data = jax.random.key_data(key)
+            folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
+            path = self.path + "/" + folder_name
+            if os.path.exists(path):
+                raise FileExistsError(f"Path {path} already exists.")
+            if not os.path.exists(path):
+                os.makedirs(path)
+
+        jax.debug.callback(callback, ordered=True, key=key)
+
         return SaveLoggerState(key=key)
 
     def log(self, logger_state: SaveLoggerState, logs: lox.logdict) -> None:

@@ -2,6 +2,8 @@ import jax
 from dataclasses import dataclass
 from typing import Any
 
+runs = {}
+
 
 @jax.tree_util.register_dataclass
 @dataclass
@@ -13,8 +15,8 @@ class Run:
     Attributes:
         id (Any): The unique identifier for the run in wandb.
     """
-    id: Any
 
+    id: Any
 
     def __init__(self, id: Any):
         """
@@ -25,7 +27,9 @@ class Run:
         """
         self.id = id
 
-    def log(self, data: dict):
+    def log(
+        self, data: dict[str, Any], step: int | None = None, commit: bool | None = None
+    ) -> None:
         """
         Logs data to the run.
         Wraps :func:`lox.wandb.log` to log data to the run.
