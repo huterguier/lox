@@ -1,13 +1,15 @@
 import jax
-import lox.wandb
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 from lox.logger import Logger, LoggerState
+from lox import logdict, tap
+from .run import WandbRun
+from .init import init, log
 
 
 @dataclass
 class WandbLoggerState(LoggerState):
-    run: lox.wandb.Run
+    run: WandbRun
 
 
 class WandbLogger(Logger[WandbLoggerState]):
@@ -18,16 +20,21 @@ class WandbLogger(Logger[WandbLoggerState]):
         self.wandb_kwargs = kwargs
 
     def init(self, key: jax.Array) -> WandbLoggerState:
-        run = lox.wandb.init(key, **self.wandb_kwargs)
+        run = init(key, **self.wandb_kwargs)
         return WandbLoggerState(run=run)
 
-    def log(self, logger_state: WandbLoggerState, logs: lox.logdict):
+    def log(self, logger_state: WandbLoggerState, logs: logdict):
         run = logger_state.run
-        lox.wandb.log(run, logs)
+        log(run, logs)
 
-    def tap(self, logger_state: WandbLoggerState, f: Callable) -> Callable:
-        def callback(logs: lox.logdict):
+    def tap(
+        self,
+        f: Callable,
+        logger_state: WandbLoggerState,
+        argnames: Optional[Sequence[str]] = None,
+    ) -> Callable:
+        def callback(logs: logdict):
             run = logger_state.run
-            lox.wandb.log(run, logs)
+            log(run, logs)
 
-        return lox.tap(f, callback=callback)
+        return tap(f, callback=callback, argnames=argnames)

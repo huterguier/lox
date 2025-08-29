@@ -2,12 +2,12 @@ import jax
 from dataclasses import dataclass
 from typing import Any
 
-runs = {}
+runs_wandb = {}
 
 
 @jax.tree_util.register_dataclass
 @dataclass
-class Run:
+class WandbRun:
     """
     A class representing a run in Weights & Biases (wandb).
     This class is used to encapsulate the run ID. All other metadata is obtained by reconnecting to the existing run and retrieving the metadata from there.

@@ -49,7 +49,7 @@ class SpoolTest(parameterized.TestCase):
         logger_state = logger.init(key)
 
         xs = jnp.arange(100)
-        _ = logger.spool(f, logger_state, interval=10)(xs)
+        _ = logger.spool(f_step, logger_state, interval=10)(xs)
 
 
 if __name__ == "__main__":

@@ -2,26 +2,27 @@ import jax
 import jax.numpy as jnp
 import jax.experimental
 import wandb
-from lox.wandb.run import Run
 import lox
-from .run import runs
+from .run import WandbRun, runs_wandb
 from functools import partial
 from typing import Optional
 
 
 def log(
-    run: Run,
+    run: WandbRun,
     logs: lox.logdict,
 ):
     def callback(id, logs):
         id = str(lox.String(id))
-        run = runs[id]
+        run = runs_wandb[id]
         if "step" in logs.steps:
             ordered_data = {}
             for k, vs in logs.items():
                 steps = logs.steps["step"]
                 if k not in steps:
-                    raise ValueError(f"Either all or none of the keys must have steps. Key {k} is missing steps.")
+                    raise ValueError(
+                        f"Either all or none of the keys must have steps. Key {k} is missing steps."
+                    )
                 for v, step in zip(vs, steps[k]):
                     step = int(step)
                     if step not in ordered_data:
@@ -36,9 +37,7 @@ def log(
             for i in range(len(leaves[0])):
                 run.log(jax.tree.map(lambda l: l[i], logs))
 
-    jax.debug.callback(
-        callback, ordered=True, id=run.id, logs=logs
-    )
+    jax.debug.callback(callback, ordered=True, id=run.id, logs=logs)
     return
 
 
@@ -51,7 +50,7 @@ def init(key, **kwargs):
             kwargs["name"] = kwargs["name"] + f"{key[0]}{key[1]}"
 
         run = wandb.init(reinit="create_new", **kwargs)
-        runs[run.id] = run
+        runs_wandb[run.id] = run
 
         return lox.string(run.id).value
 
@@ -70,13 +69,13 @@ def init(key, **kwargs):
         **kwargs,
     )
 
-    return Run(id=id)
+    return WandbRun(id=id)
 
 
-def finish(run: Run):
+def finish(run: WandbRun):
     def callback(id):
         id = str(lox.String(id))
-        run = runs[id]
+        run = runs_wandb[id]
         run.finish()
 
     jax.debug.callback(callback, ordered=True, id=run.id)

@@ -1,4 +1,5 @@
-import lox
+from .logdict import logdict
+from .spool import spool
 from functools import wraps
 from dataclasses import dataclass
 from typing import TypeVar, Generic, Callable, Sequence, Optional
@@ -17,7 +18,7 @@ class Logger(Generic[LoggerStateT]):
     def init(self, *args, **kwargs) -> LoggerStateT:
         raise NotImplemented
 
-    def log(self, logger_state: LoggerStateT, logs: lox.logdict) -> None:
+    def log(self, logger_state: LoggerStateT, logs: logdict) -> None:
         raise NotImplemented
 
     def spool(
@@ -44,7 +45,7 @@ class Logger(Generic[LoggerStateT]):
 
         @wraps(f)
         def wrapped(*args, **kwargs):
-            y, logs = lox.spool(
+            y, logs = spool(
                 f,
                 keep_logs=keep_logs,
                 interval=interval,
@@ -57,8 +58,8 @@ class Logger(Generic[LoggerStateT]):
 
     def tap(
         self,
-        logger_state: LoggerStateT,
         f: Callable,
+        logger_state: LoggerStateT,
         argnames: Optional[Sequence[str]] = None,
     ) -> Callable:
         raise NotImplemented
@@ -79,7 +80,7 @@ class MultiLogger(Logger[MultiLoggerState]):
         logger_states = tuple(logger.init(*args, **kwargs) for logger in self.loggers)
         return MultiLoggerState(logger_states=logger_states)
 
-    def log(self, logger_state: MultiLoggerState, logs: lox.logdict):
+    def log(self, logger_state: MultiLoggerState, logs: logdict):
         for sub_logger, sub_logger_state in zip(
             self.loggers, logger_state.logger_states
         ):
@@ -87,13 +88,13 @@ class MultiLogger(Logger[MultiLoggerState]):
 
     def tap(
         self,
-        logger_state: MultiLoggerState,
         f: Callable,
+        logger_state: MultiLoggerState,
         argnames: Optional[Sequence[str]] = None,
     ) -> Callable:
         f_tapped = f
         for sub_logger, sub_logger_state in zip(
             self.loggers, logger_state.logger_states
         ):
-            f_tapped = sub_logger.tap(sub_logger_state, f_tapped, argnames=argnames)
+            f_tapped = sub_logger.tap(f_tapped, sub_logger_state, argnames=argnames)
         return f_tapped
