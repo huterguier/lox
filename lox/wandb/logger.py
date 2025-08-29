@@ -7,6 +7,7 @@ from .run import WandbRun
 from .init import init, log
 
 
+@jax.tree_util.register_dataclass
 @dataclass
 class WandbLoggerState(LoggerState):
     run: WandbRun

@@ -1,3 +1,4 @@
+import jax
 from .logdict import logdict
 from .spool import spool
 from functools import wraps
@@ -5,6 +6,7 @@ from dataclasses import dataclass
 from typing import TypeVar, Generic, Callable, Sequence, Optional
 
 
+@jax.tree_util.register_dataclass
 @dataclass
 class LoggerState:
     pass
@@ -65,6 +67,7 @@ class Logger(Generic[LoggerStateT]):
         raise NotImplemented
 
 
+@jax.tree_util.register_dataclass
 @dataclass
 class MultiLoggerState(LoggerState):
     logger_states: tuple[LoggerState, ...]
