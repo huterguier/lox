@@ -31,13 +31,14 @@ def log(data: dict[str, Any], **steps: int) -> logdict:
 
     data_logdict = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 0), data)
     steps_logdict = {
-        key_step: stepdict({key_data: value_step for key_data, _ in data.items()})
+        key_step: stepdict(
+            {key_data: jnp.array([value_step]) for key_data, _ in data.items()}
+        )
         for key_step, value_step in steps.items()
     }
     logs = logdict(data_logdict, **steps_logdict)
     logs_flat, structure = jax.tree_util.tree_flatten(logs)
     _ = lox_p.bind(*logs_flat, structure=structure)
-    print(structure)
     return jax.tree_util.tree_unflatten(structure, logs_flat)
 
 

@@ -83,6 +83,7 @@ def save(
     )
 
 
+@jax.tree_util.register_dataclass
 @dataclass
 class SaveLoggerState(LoggerState):
     key: jax.Array
