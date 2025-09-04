@@ -41,7 +41,7 @@ class SpoolTest(parameterized.TestCase):
         logger_state = logger.init(key)
 
         xs = jnp.arange(100)
-        _ = logger.spool(f_step, logger_state, interval=2)(xs)
+        _ = logger.spool(f_step, logger_state, reduce="last")(xs)
 
     def test_multi(self):
         key = jax.random.PRNGKey(1)

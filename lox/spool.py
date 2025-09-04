@@ -31,7 +31,7 @@ def spool(
     fun: Callable,
     keep_logs=False,
     interval: Optional[int] = None,
-    reduce: Optional[int | str] = None,
+    reduce: Optional[str] = None,
 ) -> Callable:
     """
     Spools a function to extract logs generated during its execution.

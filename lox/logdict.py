@@ -44,6 +44,28 @@ class stepdict(dict[str, jax.Array]):
                 new_steps[key] = other[key]
         return stepdict(new_steps)
 
+    def reduce(self, mode: str = "mean") -> "stepdict":
+        """
+        Reduces the stepdict values using the specified mode.
+        Args:
+          mode (str): The reduction mode to apply. Can be one of "mean", "first" or "last".
+        Returns:
+          stepdict: A new stepdict containing the reduced values.
+        """
+        if mode == "mean":
+            return stepdict(
+                {
+                    k: jnp.mean(v, keepdims=True) if len(v) > 1 else v
+                    for k, v in self.items()
+                }
+            )
+        if mode == "first":
+            return stepdict({k: v[:1] for k, v in self.items()})
+        if mode == "last":
+            return stepdict({k: v[-1:] for k, v in self.items()})
+        else:
+            raise ValueError(f"Unknown reduction mode: {mode}")
+
     def _slice(
         self,
         start: int | None = None,
@@ -279,58 +301,39 @@ class logdict(dict[str, Any]):
 
     def reduce(
         self,
-        mode: str | Callable = "mean",
-        step: str | None = None,
+        mode: str = "mean",
         keep_steps: bool = True,
     ) -> "logdict":
         """
-        Reduces the logdict data using the specified mode.
-        The ``step`` argument allows to specify on which step the reduction should be applied.
-        Whenever there are other steps, the reduction will be applied to them aswell.
-        Alternatively you can set ``keep_steps`` to ``False`` to remove all other steps.
-
-
+        Reduces the logdict values using the specified mode.
 
         Args:
-          mode (str | Callable): The reduction mode to apply. Can be one of "mean", "sum", or a custom function.
-          step (str): The step on which to apply the reduction. If None, the reduction is applied to all steps.
-          keep_steps (bool): Whether to keep the all other steps in the logdict.
+            mode (str): The reduction mode to apply. Can be one of "mean", "first" or "last".
+            keep_steps (bool): Whether to keep the steps in the reduced logdict.
         Returns:
-          logdict: A new logdict containing the reduced data.
+            logdict: A new logdict containing the reduced values and optionally the steps.
+        Note that reduction over specific steps is not implemented yet.
 
-        Examples:
-          The following example shows how to reduce the loss values by taking the mean over
-          the :string:`episode` step, while keeping the other steps intact.
-          First we create a logdict with some dummy data.
-
-          >>> _, logs = lox.spool(f)()
-          >>> logs["loss"]
-          [1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2, 0.17]
-          >>> logs.step["loss"]
-          [0, 1, 2, 3, 4, 5, 6, 7, 8]
-          >>> loss.episode["loss"]
-          [0, 0, 0, 1, 1, 1, 2, 2, 2]
-
-          Now we can reduce the loss values by taking the mean over the "mean" step.
-
-          >>> logs = logs.reduce("mean", step="episode", keep_steps=True)
-          >>> logs["loss"]
-          [0.8, 0.4, 0.21]
-          >>> logs.step["loss"]
-          [1, 4, 7]
-          >>> logs.episode["loss"]
-          [0, 1, 2]
-
-        This example shows how to reduce the loss values by taking the mean
-        over the :string:`episode` step, while keeping the other steps intact.
-        Consequently the reduction is also applied to the :string:`step` step, where
-        the mean is taken over all steps that belong to the same episode.
-        There are also other reduction modes available, such as :string:`max` or a "min".
-        But note that these reduction modes can only be applied to scalar values,
-        as they do not make sense for general arrays or pytrees.
+        Raises:
+            ValueError: If the reduction mode is not recognized.
         """
-
-        return self
+        if mode == "mean":
+            data_reduced = {
+                k: jnp.mean(v, keepdims=True) if len(v) > 1 else v
+                for k, v in self.items()
+            }
+            steps_reduced = {k: v.reduce(mode) for k, v in self.steps.items()}
+            return logdict(data_reduced, **steps_reduced if keep_steps else {})
+        if mode == "first":
+            data_reduced = {k: v[:1] for k, v in self.items()}
+            steps_reduced = {k: v.reduce(mode) for k, v in self.steps.items()}
+            return logdict(data_reduced, **steps_reduced if keep_steps else {})
+        if mode == "last":
+            data_reduced = {k: v[-1:] for k, v in self.items()}
+            steps_reduced = {k: v.reduce(mode) for k, v in self.steps.items()}
+            return logdict(data_reduced, **steps_reduced if keep_steps else {})
+        else:
+            raise ValueError(f"Unknown reduction mode: {mode}")
 
     def _slice(
         self,
