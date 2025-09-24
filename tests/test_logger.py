@@ -5,9 +5,9 @@ import os
 from absl.testing import absltest, parameterized
 
 import lox
-from lox.save import SaveLogger
-from lox.logger import MultiLogger
-from lox.wandb.logger import WandbLogger
+from lox.loggers import SaveLogger
+from lox.loggers import MultiLogger
+from lox.wandb.wandb_logger import WandbLogger
 
 
 def f(xs):

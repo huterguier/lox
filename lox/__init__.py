@@ -2,8 +2,8 @@ from .spool import spool
 from .tap import tap
 from .primitive import log
 from .util import String, string
-from .save import save
-from .save import SaveLogger
+from lox.save import save
+from lox.loggers.save_logger import SaveLogger
 from .logdict import logdict
 from .logger import Logger, LoggerState, MultiLogger
 import lox.wandb as wandb
