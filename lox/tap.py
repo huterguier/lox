@@ -144,9 +144,9 @@ def tap_jaxpr(
             structure = eqn.params["structure"]
             logs = jax.tree.unflatten(structure, eqn.invars)
             if argnames is None and eqn.params["explicit"]:
-                logs = {}
-            else:
-                logs = {k: v for k, v in logs.items() if k in argnames}
+                logs = logdict({})
+            elif argnames is not None:
+                logs = logs.filter(lambda k, _: k in argnames)
             logs_avals = jax.tree.map(lambda l: l.aval, logs)
             logs_avals_flat, structure_avals = jax.tree.flatten(logs_avals)
             if logs_avals:

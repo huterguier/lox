@@ -11,7 +11,7 @@ lox_p = core.Primitive("lox")
 lox_p.multiple_results = True
 
 
-def log(data: dict[str, Any], explicit=True, **steps: int) -> logdict:
+def log(data: dict[str, Any], explicit=False, **steps: int) -> logdict:
     """
     Fundamental logging primitive for Lox.
     This primitive creates a logdict for a single data point and associates it with the provided steps.

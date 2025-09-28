@@ -127,6 +127,19 @@ class stepdict(dict[str, jax.Array]):
         """
         return cls(jax.tree_util.tree_unflatten(structure, steps_flat))
 
+    def filter(self, predicate: Callable[[str, Any], bool]) -> "stepdict":
+        """
+        Filters the stepdict values based on a predicate function.
+
+        Args:
+          predicate (Callable[[str, Any], bool]): A function that takes a key and value
+            and returns True if the item should be kept, False otherwise.
+        Returns:
+            stepdict: A new stepdict containing only the items that satisfy the predicate.
+        """
+        new_data = {k: v for k, v in self.items() if predicate(k, v)}
+        return stepdict(new_data)
+
 
 @jax.tree_util.register_pytree_node_class
 class logdict(dict[str, Any]):
@@ -375,3 +388,19 @@ class logdict(dict[str, Any]):
           _SliceProxy: A proxy object that allows slicing the logdict.
         """
         return self._SliceProxy(self)
+
+    def filter(self, predicate: Callable[[str, Any], bool]) -> "logdict":
+        """
+        Filters the logdict values and steps based on a predicate function.
+
+        Args:
+          predicate (Callable[[str, Any], bool]): A function that takes a key and value
+            and returns True if the item should be kept, False otherwise.
+        Returns:
+            logdict: A new logdict containing only the items that satisfy the predicate.
+        """
+        new_data = {k: v for k, v in self.items() if predicate(k, v)}
+        new_steps = {
+            step_name: step.filter(predicate) for step_name, step in self.steps.items()
+        }
+        return logdict(new_data, **new_steps)
