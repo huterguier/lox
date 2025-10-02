@@ -10,13 +10,13 @@ from .logger import Logger, LoggerState
 @jax.tree_util.register_dataclass
 @dataclass
 class MultiLoggerState(LoggerState):
-    logger_states: tuple[LoggerState, ...]
+    logger_states: Sequence[LoggerState]
 
 
 class MultiLogger(Logger[MultiLoggerState]):
     loggers: Sequence[Logger]
 
-    def __init__(self, loggers: Sequence[Logger]):
+    def __init__(self, *loggers: Logger):
         self.loggers = loggers
 
     def init(self, *args, **kwargs) -> MultiLoggerState:

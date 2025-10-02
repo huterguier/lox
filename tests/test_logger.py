@@ -45,7 +45,7 @@ class SpoolTest(parameterized.TestCase):
 
     def test_multi(self):
         key = jax.random.PRNGKey(1)
-        logger = MultiLogger([SaveLogger("./.lox"), WandbLogger(project="lox")])
+        logger = MultiLogger(SaveLogger("./.lox"), WandbLogger(project="lox"))
         logger_state = logger.init(key)
 
         xs = jnp.arange(100)
