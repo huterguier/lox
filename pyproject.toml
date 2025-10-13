@@ -14,6 +14,7 @@ authors = [
 ]
 dependencies = [
   "jax>=0.6.0",
+  "rich",
   "wandb>=0.20.1",
 ]
 classifiers = [
@@ -23,8 +24,15 @@ classifiers = [
 
 [project.optional-dependencies]
 cuda = ["jax[cuda12]>=0.6.0"]
-testing = [
-  "absl-py",
+dev = [
+  "black",
+  "isort",
+  "pytest",
+  "pytest-cov",
+]
+test = [
+  "pytest",
+  "pytest-cov",
 ]
 docs = [
   "matplotlib",

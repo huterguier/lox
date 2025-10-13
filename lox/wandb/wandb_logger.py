@@ -1,7 +1,7 @@
 import jax
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
-from lox.logger import Logger, LoggerState
+from lox.loggers.logger import Logger, LoggerState
 from lox import logdict, tap
 from .run import WandbRun
 from .init import init, log

@@ -1,13 +1,13 @@
+import os
+import shutil
+
 import jax
 import jax.numpy as jnp
-import shutil
-import os
 from absl.testing import absltest, parameterized
 
 import lox
-from lox.loggers import SaveLogger
-from lox.loggers import MultiLogger
-from lox.wandb.wandb_logger import WandbLogger
+from lox.loggers import MultiLogger, SaveLogger
+from lox.wandb import WandbLogger
 
 
 def f(xs):

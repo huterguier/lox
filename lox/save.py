@@ -2,9 +2,7 @@ import jax
 import jax.numpy as jnp
 import pickle
 import os
-from typing import Any, Optional, Callable
-from lox.logger import Logger, LoggerState
-from dataclasses import dataclass
+from typing import Any, Optional
 
 import lox
 
