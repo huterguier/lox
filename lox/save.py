@@ -23,6 +23,9 @@ def save_callback(
         folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
         path = path + "/" + folder_name
 
+    if os.path.exists(path):
+        raise FileExistsError(f"Path {path} already exists.")
+
     for k, v in data.items():
         file = path + f"/{k}.pkl"
         dir, _ = os.path.split(file)
