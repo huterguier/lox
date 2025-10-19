@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lox"
-version = "0.1.0"
+version = "0.0.1"
 description = "Logging library for JAX that compatible with transformations such as jit and vmap."
 readme = "README.md"
 requires-python = ">=3.10"
