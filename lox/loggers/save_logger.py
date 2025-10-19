@@ -30,7 +30,13 @@ class SaveLogger(Logger[SaveLoggerState]):
             folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
             path = self.path + "/" + folder_name
             if os.path.exists(path):
-                raise FileExistsError(f"Path {path} already exists.")
+                overwrite = input(
+                    f"Path {path} already exists. Overwrite? (y/n): "
+                ).lower()
+                if overwrite == "y":
+                    os.remove(path)
+                else:
+                    raise FileExistsError(f"Path {path} already exists.")
             else:
                 os.makedirs(path)
 
