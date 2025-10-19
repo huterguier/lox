@@ -2,13 +2,35 @@
     <img src="https://github.com/huterguier/lox/blob/main/docs/_static/lox.png" width="230">
 </div>
 
-# Accelerated Logging in JAX
+# Logging in JAX
+[![PyPI version](https://img.shields.io/badge/pypi-not_available-red.svg)](#installation)
+[![License: Apache-2.0](https://img.shields.io/github/license/huterguier/lox?color=yellow)](https://opensource.org/licenses/MIT)
+[![Documentation](https://img.shields.io/badge/docs-available-blue.svg)](https://opensource.org/licenses/MIT)
+[![Code Style: Black](https://img.shields.io/badge/codestyle-black-black.svg)](https://opensource.org/licenses/MIT)
 
-Lox is a lightweight and flexible logging library for JAX that provides a simple interface for logging data during function execution.
-Logging is implemented with it's own primitive, which allows it to work seamlessly with JAX's built-in function transformations like `jit` or `vmap`.
-All you need to do is decorate your code with `lox.log` statements and Lox does the rest.
-Using JAX's intermediate function representation Lox can dynamically insert callbacks to log you data or collect the logs that would have been generated during the execution and return them as part of the output of you function.
-While it's obviously possible to implement this functionality yourself, Lox provides a simple and efficient way to do so without having to carry around boilerplate code in your functions.
+
+[`lox`](https://github.com/huterguier/lox) is a lightweight and flexible logging library for [JAX](https://github.com/jax-ml/jax).
+All you need to do is decorate your code with `lox.log` statements and `lox` does the rest.
+Using JAX's intermediate function representation Lox can dynamically insert callbacks to log you data, or collect the logs that would have been generated during the execution and return them as part of the output of your function.
+While it's obviously possible to implement this functionality yourself, `lox` provides a simple and efficient way to do so without having to carry around boilerplate code in your functions.
+
+## Features
+- 🔌 **Plug-and-Play:**  Simply add `lox.log` statements where you need them. `lox` handles all the complex boilerplate of plumbing data through JAX's transformations, keeping your function signatures clean and focused on the logic.
+
+- 📦 **Automatic Extraction:**  Instead of explicitly returning data from you functions, `lox.spool` automatically "spools up" all logs generated during a function's execution. It collects them and returns them as a single `logdict` alongside the function's original output.
+
+- 📡 **Dynamic Callbacks:**  Using `lox.tap`, you can "tap into" a JAX-transformed function using custom callbacks. This is ideal for live monitoring and debugging without halting execution.
+
+- ✅ **`vmap` over Seeds:**  Built on its own JAX primitive, `lox` works effortlessly with core transformations like `jit`, `scan`, and `vmap`.
+
+- 📊 **Experiment Loggers:**  Includes built-in loggers that seamlessly pipe your metrics to popular experiment tracking platforms including [`wandb`](https://wandb.ai/) and [`neptune`](https://neptune.ai/), which are also fully compatible with `vmap`.
+
+## Quick Start
+
+### Basic API
+At its core `lox` is built around 2 central function transformations calles `tap` and `spool`.
+They work by traversing the functions [`jaxpr`](https://docs.jax.dev/en/latest/jaxpr.html), JAX's internal intermediate function representation, and dynamically alters it to match the desired behavior.
+In order to use them with you function, all you need to do is specify what you want to log using `lox.log`.
 
 ```python
 >>> import jax
@@ -26,7 +48,9 @@ While it's obviously possible to implement this functionality yourself, Lox prov
 
 >>> xs = jnp.arange(3)
 ```
-The first transformation, `lox.tap`, lets you "tap into" function execution by attaching a callback that receives logs as they're generated. It streams logs in real time, making it great for debugging or live monitoring.
+The first transformation, `lox.tap`, lets you "tap into" function execution by attaching a callback that receives logs as they're generated. 
+It streams logs in real time, making it great for debugging or live monitoring.
+In the following example we use a simple callback that writes all logs to the console.
 
 ```python
 >>> def callback(logs):
@@ -41,13 +65,14 @@ Logging: {'carry': 3}
 The second transformation, `lox.spool`, "spools up" all logs during execution and returns them alongside the function's output. 
 This is especially useful when frequent callbacks would be too expensive. 
 For instance, instead of logging on every iteration, you can collect all logs for a training step and emit them in a single call.
+`spool` is also particularly useful for collecting logs over multiple steps and then applying a reduction like `jnp.mean` to them.
 ```python
 >>> y, logs = lox.spool(f)(xs)
 >>> print("Collected Logs:", logs)
 Collected Logs: {'xs': [0, 1, 2], 'carry': [0, 1, 3]}
 ```
 
-## Logdicts
+### Logdicts
 
 Lox provides its own internal data structure for logs called `logdict`, which is a subclass of Python's built-in `dict`.
 To the naked eye, it behaves like a regular dictionary, but it comes with some additional features that make it easier to work with logs.
@@ -79,9 +104,7 @@ Corresponding Steps: [0, 1, 2]
 Corresponding Episodes: [0, 0, 1]
 ```
 
-
-
-## Loggers
+### Loggers
 
 Lox comes with built-in loggers for common use cases.
 Loggers support both `lox.tap` and `lox.spool` transformations and let you easily log to different backends.
@@ -106,13 +129,24 @@ Loggers can also be combined to log to multiple backends simultaneously using `l
 ```
 
 
-
-
-
 ## Installation
-
-Lox can be installed directly from the GitHub repository.
-
+`lox` can be installed directly from this GitHub repository.
 ```bash
 pip install git+https://github.com/huterguier/lox
+```
+By default `lox` comes without any of the external experiment loggers. Make sure to include the optional dependencies or to install them manually.
+```bash
+pip install "lox[wandb,neptune] @ git+https://github.com/huterguier/lox"
+```
+
+## Citation
+If you use ``lox`` in youre research, feel free to cite it as follows.
+```bibtex
+@software{lox2025github,
+  author = {Henrik Metternich},
+  title = {{lox}: Logging in JAX.},
+  url = {https://github.com/huterguier/lox},
+  version = {0.1.0},
+  year = {2025},
+}
 ```
