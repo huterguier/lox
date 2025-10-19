@@ -5,7 +5,6 @@ from typing import Any, Optional
 import jax
 import jax.numpy as jnp
 
-import lox
 from lox.string import StringArray
 
 
