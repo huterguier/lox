@@ -1,9 +1,11 @@
+from dataclasses import dataclass
+from functools import wraps
+from typing import Callable, Generic, Optional, Sequence, TypeVar
+
 import jax
+
 from lox.logdict import logdict
 from lox.spool import spool
-from functools import wraps
-from dataclasses import dataclass
-from typing import TypeVar, Generic, Callable, Sequence, Optional
 
 
 @jax.tree_util.register_dataclass
