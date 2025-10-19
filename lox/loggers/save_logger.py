@@ -1,10 +1,11 @@
 import os
-import jax
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
-from lox.loggers.logger import Logger, LoggerState
+import jax
+
 from lox.logdict import logdict
+from lox.loggers.logger import Logger, LoggerState
 from lox.save import save, save_callback
 from lox.tap import tap
 
@@ -30,7 +31,7 @@ class SaveLogger(Logger[SaveLoggerState]):
             path = self.path + "/" + folder_name
             if os.path.exists(path):
                 raise FileExistsError(f"Path {path} already exists.")
-            if not os.path.exists(path):
+            else:
                 os.makedirs(path)
 
         jax.debug.callback(callback, ordered=True, key=key)

@@ -4,10 +4,10 @@ from typing import (
     Callable,
     Hashable,
     Iterable,
-    Sequence,
-    overload,
     Literal,
     Optional,
+    Sequence,
+    overload,
 )
 
 import jax
@@ -22,7 +22,7 @@ from jax.extend.core import ClosedJaxpr, Jaxpr, JaxprEqn, Var
 from lox.logdict import logdict
 from lox.nolog import nolog_jaxpr
 from lox.primitive import lox_p
-from lox.util import flatten, is_hashable
+from lox.utils import flatten, is_hashable
 
 AxisName = Hashable
 

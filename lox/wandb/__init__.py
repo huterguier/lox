@@ -1,3 +1,10 @@
-from .init import init, log, finish
-from .run import WandbRun, runs_wandb
-from .wandb_logger import WandbLogger
+from lox.wandb.core import WandbRun, finish, init, log
+from lox.wandb.wandb_logger import WandbLogger
+
+__all__ = [
+    "WandbRun",
+    "WandbLogger",
+    "finish",
+    "init",
+    "log",
+]

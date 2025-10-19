@@ -6,25 +6,23 @@ import jax
 import jax.numpy as jnp
 
 import lox
+from lox.string import StringArray
 
 
 def save_callback(
     data: dict[str, Any],
-    path: lox.String | str,
+    path: StringArray | str,
     mode: str = "a",
     key: Optional[jax.Array] = None,
 ):
     if mode not in ["a", "w", "x"]:
         raise ValueError("Mode must be 'a', 'w', or 'x'.")
-    if isinstance(path, lox.String):
-        path = str(lox.String(path))
+    if isinstance(path, StringArray):
+        path = str(path)
     if key is not None:
         key_data = jax.random.key_data(key)
         folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
         path = path + "/" + folder_name
-
-    if os.path.exists(path):
-        raise FileExistsError(f"Path {path} already exists.")
 
     for k, v in data.items():
         file = path + f"/{k}.pkl"
@@ -59,7 +57,7 @@ def save_callback(
 
 def save(
     data: dict[str, Any],
-    path: lox.String | str,
+    path: StringArray | str,
     mode: str = "a",
     key: Optional[jax.Array] = None,
 ):
@@ -74,30 +72,3 @@ def save(
     jax.debug.callback(
         save_callback, ordered=True, data=data, path=path, mode=mode, key=key
     )
-
-
-# def load(path, result_shape_dtypes):
-#
-#   def _len(path):
-#     with open(path, 'rb') as f:
-#       data = pickle.load(f)
-#     return len(jax.tree_util.tree_leaves(data)[0])
-#
-#
-#   def _callback(path):
-#     with open(path, 'rb') as f:
-#       data = pickle.load(f)
-#     return data
-#
-#   data = jax.experimental.io_callback(
-#     _callback,
-#     result_shape_dtypes=result_shape_dtypes,
-#     path=path
-#   )
-#
-#   return data
-#
-#
-# data = {"a": jax.numpy.ones((2, 3)), "b": jax.numpy.ones((2, 3))}
-# path = lox.string('test_save_path')
-# save(data, path)

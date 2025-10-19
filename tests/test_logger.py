@@ -28,6 +28,7 @@ def f_step(xs):
 
 class SpoolTest(parameterized.TestCase):
     def test_save(self):
+        # os.removedirs("./.lox")
         key = jax.random.PRNGKey(0)
         logger = SaveLogger("./.lox")
         logger_state = logger.init(key)
@@ -44,6 +45,7 @@ class SpoolTest(parameterized.TestCase):
         _ = logger.spool(f_step, logger_state, reduce="last")(xs)
 
     def test_multi(self):
+        # os.removedirs("./.lox")
         key = jax.random.PRNGKey(1)
         logger = MultiLogger(SaveLogger("./.lox"), WandbLogger(project="lox"))
         logger_state = logger.init(key)

@@ -8,7 +8,7 @@ from jax.extend.core import ClosedJaxpr, Jaxpr
 
 from lox.logdict import logdict
 from lox.primitive import lox_p
-from lox.util import flatten, is_hashable
+from lox.utils import flatten, is_hashable
 
 AxisName = Hashable
 
