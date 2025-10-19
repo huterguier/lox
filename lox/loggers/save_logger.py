@@ -34,7 +34,7 @@ class SaveLogger(Logger[SaveLoggerState]):
                     f"Path {path} already exists. Overwrite? (y/n): "
                 ).lower()
                 if overwrite == "y":
-                    os.remove(path)
+                    os.rmdir(path)
                 else:
                     raise FileExistsError(f"Path {path} already exists.")
             else:
