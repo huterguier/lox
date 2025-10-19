@@ -1,8 +1,9 @@
+import os
+import pickle
+from typing import Any, Optional
+
 import jax
 import jax.numpy as jnp
-import pickle
-import os
-from typing import Any, Optional
 
 import lox
 
@@ -22,44 +23,35 @@ def save_callback(
         folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
         path = path + "/" + folder_name
 
-    if mode == "a":
-        for k in data:
-            file = path + "/" + k + ".pkl"
+    for k, v in data.items():
+        file = path + f"/{k}.pkl"
+        dir, _ = os.path.split(file)
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        if mode == "a":
             if os.path.exists(file):
                 with open(file, "rb") as f:
-                    value = pickle.load(f)
-                value = jax.tree_util.tree_map(
-                    lambda v, d: jnp.concatenate(
-                        [jnp.atleast_1d(v), jnp.atleast_1d(d)]
+                    v_file = pickle.load(f)
+                v_file = jax.tree.map(
+                    lambda vf, vd: jnp.concatenate(
+                        [jnp.atleast_1d(vf), jnp.atleast_1d(vd)]
                     ),
-                    value,
-                    data[k],
+                    v_file,
+                    v,
                 )
                 with open(file, "wb") as f:
-                    pickle.dump(value, f)
+                    pickle.dump(v_file, f)
             else:
-                if not os.path.exists(path):
-                    os.makedirs(path)
                 with open(file, "wb") as f:
-                    pickle.dump(data[k], f)
-
-    elif mode == "w":
-        for k in data:
-            file = path + "/" + k + ".pkl"
-            if not os.path.exists(path):
-                os.makedirs(path)
+                    pickle.dump(v, f)
+        elif mode == "w":
             with open(file, "wb") as f:
-                pickle.dump(data[k], f)
-
-    elif mode == "x":
-        if os.path.exists(path):
-            raise FileExistsError(f"Path {path} already exists.")
-        for k in data:
-            file = path + "/" + k + ".pkl"
-            if not os.path.exists(path):
-                os.makedirs(path)
+                pickle.dump(v, f)
+        elif mode == "x":
+            if os.path.exists(file):
+                raise FileExistsError(f"File {file} already exists.")
             with open(file, "wb") as f:
-                pickle.dump(data[k], f)
+                pickle.dump(v, f)
 
 
 def save(
