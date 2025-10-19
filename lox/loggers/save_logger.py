@@ -1,4 +1,5 @@
 import os
+import shutil
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
@@ -34,11 +35,10 @@ class SaveLogger(Logger[SaveLoggerState]):
                     f"Path {path} already exists. Overwrite? (y/n): "
                 ).lower()
                 if overwrite == "y":
-                    os.rmdir(path)
+                    shutil.rmtree(path)
                 else:
                     raise FileExistsError(f"Path {path} already exists.")
-            else:
-                os.makedirs(path)
+            os.makedirs(path)
 
         jax.debug.callback(callback, ordered=True, key=key)
 
