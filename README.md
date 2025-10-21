@@ -140,7 +140,7 @@ pip install "lox[wandb,neptune] @ git+https://github.com/huterguier/lox"
 ```
 
 ## Citation
-If you use ``lox`` in youre research, feel free to cite it as follows.
+If you use ``lox`` in your research, feel free to cite it as follows.
 ```bibtex
 @software{lox2025github,
   author = {Henrik Metternich},
