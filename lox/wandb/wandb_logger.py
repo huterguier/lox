@@ -33,8 +33,9 @@ class WandbLogger(Logger[WandbLoggerState]):
         f: Callable,
         logger_state: WandbLoggerState,
         argnames: Optional[Sequence[str]] = None,
+        prefix: str = "",
     ) -> Callable:
         def callback(logs: logdict):
             log(logger_state.wandb_run, logs)
 
-        return tap(f, callback=callback, argnames=argnames)
+        return tap(f, callback=callback, argnames=argnames, prefix=prefix)

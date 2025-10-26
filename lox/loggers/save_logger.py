@@ -52,8 +52,9 @@ class SaveLogger(Logger[SaveLoggerState]):
         f: Callable,
         logger_state: SaveLoggerState,
         argnames: Optional[Sequence[str]] = None,
+        prefix: str = "",
     ) -> Callable:
         def callback(logs: logdict):
             save_callback(logs, self.path, key=logger_state.key)
 
-        return tap(f, callback=callback, argnames=argnames)
+        return tap(f, callback=callback, argnames=argnames, prefix=prefix)

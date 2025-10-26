@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import wraps
 from typing import Callable, Generic, Optional, Sequence, TypeVar
@@ -17,7 +18,7 @@ class LoggerState:
 LoggerStateT = TypeVar("LoggerStateT", bound=LoggerState)
 
 
-class Logger(Generic[LoggerStateT]):
+class Logger(Generic[LoggerStateT], ABC):
 
     def init(self, *args, **kwargs) -> LoggerStateT:
         raise NotImplemented
@@ -32,6 +33,7 @@ class Logger(Generic[LoggerStateT]):
         keep_logs: bool = False,
         interval: Optional[int] = None,
         reduce: Optional[str] = None,
+        prefix: str = "",
     ) -> Callable:
         """
         Wraps a function to log its output.
@@ -42,6 +44,7 @@ class Logger(Generic[LoggerStateT]):
             keep_logs: Whether to keep all logs or just the reduced value.
             interval: The interval at which to log.
             reduce: The reduction method to apply to the logs.
+            prefix: An optional prefix to add to the log keys.
 
         Returns:
           A wrapped function that logs its output.
@@ -54,16 +57,19 @@ class Logger(Generic[LoggerStateT]):
                 keep_logs=keep_logs,
                 interval=interval,
                 reduce=reduce,
+                prefix=prefix,
             )(*args, **kwargs)
             self.log(logger_state, logs)
             return y
 
         return wrapped
 
+    @abstractmethod
     def tap(
         self,
         f: Callable,
         logger_state: LoggerStateT,
         argnames: Optional[Sequence[str]] = None,
+        prefix: str = "",
     ) -> Callable:
-        raise NotImplemented
+        pass

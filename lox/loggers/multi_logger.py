@@ -1,8 +1,9 @@
-import jax
-from lox.logdict import logdict
 from dataclasses import dataclass
-from typing import Callable, Sequence, Optional
+from typing import Callable, Optional, Sequence
 
+import jax
+
+from lox.logdict import logdict
 
 from .logger import Logger, LoggerState
 
@@ -34,10 +35,13 @@ class MultiLogger(Logger[MultiLoggerState]):
         f: Callable,
         logger_state: MultiLoggerState,
         argnames: Optional[Sequence[str]] = None,
+        prefix: str = "",
     ) -> Callable:
         f_tapped = f
         for sub_logger, sub_logger_state in zip(
             self.loggers, logger_state.logger_states
         ):
-            f_tapped = sub_logger.tap(f_tapped, sub_logger_state, argnames=argnames)
+            f_tapped = sub_logger.tap(
+                f_tapped, sub_logger_state, argnames=argnames, prefix=prefix
+            )
         return f_tapped

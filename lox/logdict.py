@@ -1,6 +1,7 @@
+from typing import Any, Callable, Optional
+
 import jax
 import jax.numpy as jnp
-from typing import Any, Callable, Optional
 
 
 @jax.tree_util.register_pytree_node_class
@@ -138,6 +139,18 @@ class stepdict(dict[str, jax.Array]):
             stepdict: A new stepdict containing only the items that satisfy the predicate.
         """
         new_data = {k: v for k, v in self.items() if predicate(k, v)}
+        return stepdict(new_data)
+
+    def prefix(self, prefix: str) -> "stepdict":
+        """
+        Adds a prefix to all keys in the stepdict.
+
+        Args:
+          prefix (str): The prefix to add to each key.
+        Returns:
+          stepdict: A new stepdict with prefixed keys.
+        """
+        new_data = {f"{prefix}{k}": v for k, v in self.items()}
         return stepdict(new_data)
 
 
@@ -402,5 +415,20 @@ class logdict(dict[str, Any]):
         new_data = {k: v for k, v in self.items() if predicate(k, v)}
         new_steps = {
             step_name: step.filter(predicate) for step_name, step in self.steps.items()
+        }
+        return logdict(new_data, **new_steps)
+
+    def prefix(self, prefix: str) -> "logdict":
+        """
+        Adds a prefix to all keys in the logdict.
+
+        Args:
+          prefix (str): The prefix to add to each key.
+        Returns:
+          logdict: A new logdict with prefixed keys.
+        """
+        new_data = {f"{prefix}{k}": v for k, v in self.items()}
+        new_steps = {
+            step_name: step.prefix(prefix) for step_name, step in self.steps.items()
         }
         return logdict(new_data, **new_steps)

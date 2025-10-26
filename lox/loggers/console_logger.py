@@ -89,6 +89,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         f: Callable,
         logger_state: ConsoleLoggerState,
         argnames: Optional[Sequence[str]] = None,
+        prefix: str = "",
     ) -> Callable:
         def callback(logs):
             id = str(logger_state.id)
@@ -96,4 +97,4 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             table = make_dashboard(self.logss[id])
             self.lives[id].update(table)
 
-        return tap(f, callback=callback, argnames=argnames)
+        return tap(f, callback=callback, argnames=argnames, prefix=prefix)

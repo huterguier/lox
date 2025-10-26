@@ -33,6 +33,7 @@ def spool(
     keep_logs: bool = False,
     interval: Optional[int] = None,
     reduce: Optional[str] = None,
+    prefix: str = "",
 ) -> Callable:
     """
     Spools a function to extract logs generated during its execution.
@@ -49,6 +50,7 @@ def spool(
         keep_logs (bool): Whether to keep logs in the jaxpr.
         interval (Optional[int]): An optional interval to subsample the logs.
         reduce (Optional[int | str]): An optional reduction operation to apply to the logs.
+        prefix (str): An optional prefix to add to the log keys.
 
     Returns:
         Callable: A wrapped function that returns the spooled jaxpr and logs.
@@ -117,6 +119,8 @@ def spool(
             logs = logs.slice[::interval]
         if reduce is not None:
             logs = logs.reduce(reduce)
+        if prefix:
+            logs = logs.prefix(prefix)
         return out, logs
 
     return wrapped
