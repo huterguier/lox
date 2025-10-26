@@ -25,7 +25,11 @@ class WandbLogger(Logger[WandbLoggerState]):
         wandb_run = init(key, **self.wandb_kwargs)
         return WandbLoggerState(wandb_run=wandb_run)
 
-    def log(self, logger_state: WandbLoggerState, logs: logdict):
+    def log(
+        self, logger_state: WandbLoggerState, logs: logdict, prefix: str = ""
+    ) -> None:
+        if prefix:
+            logs = logs.prefix(prefix)
         log(logger_state.wandb_run, logs)
 
     def tap(

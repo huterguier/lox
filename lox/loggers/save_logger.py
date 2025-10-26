@@ -44,7 +44,11 @@ class SaveLogger(Logger[SaveLoggerState]):
 
         return SaveLoggerState(key=key)
 
-    def log(self, logger_state: SaveLoggerState, logs: logdict) -> None:
+    def log(
+        self, logger_state: SaveLoggerState, logs: logdict, prefix: str = ""
+    ) -> None:
+        if prefix:
+            logs = logs.prefix(prefix)
         save(logs, self.path, key=logger_state.key)
 
     def tap(

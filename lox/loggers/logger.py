@@ -20,11 +20,13 @@ LoggerStateT = TypeVar("LoggerStateT", bound=LoggerState)
 
 class Logger(Generic[LoggerStateT], ABC):
 
+    @abstractmethod
     def init(self, *args, **kwargs) -> LoggerStateT:
-        raise NotImplemented
+        pass
 
-    def log(self, logger_state: LoggerStateT, logs: logdict) -> None:
-        raise NotImplemented
+    @abstractmethod
+    def log(self, logger_state: LoggerStateT, logs: logdict, prefix: str = "") -> None:
+        pass
 
     def spool(
         self,

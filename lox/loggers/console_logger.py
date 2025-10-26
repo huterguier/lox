@@ -71,13 +71,17 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
 
         return ConsoleLoggerState(key=key, id=id)
 
-    def log(self, logger_state: ConsoleLoggerState, logs: logdict) -> None:
+    def log(
+        self, logger_state: ConsoleLoggerState, logs: logdict, prefix: str = ""
+    ) -> None:
         def callback(logger_state, logs):
             id = str(logger_state.id)
             self.logss[id] += logs
             table = make_dashboard(logs)
             self.lives[id].update(table)
 
+        if prefix:
+            logs = logs.prefix(prefix)
         jax.debug.callback(
             callback,
             logger_state=logger_state,
