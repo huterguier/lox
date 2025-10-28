@@ -4,9 +4,9 @@
 
 # Logging in JAX
 [![PyPI version](https://img.shields.io/badge/pypi-not_available-red.svg)](#installation)
-[![License: Apache-2.0](https://img.shields.io/github/license/huterguier/lox?color=yellow)](https://opensource.org/licenses/MIT)
-[![Documentation](https://img.shields.io/badge/docs-available-blue.svg)](https://opensource.org/licenses/MIT)
-[![Code Style: Black](https://img.shields.io/badge/codestyle-black-black.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache-2.0](https://img.shields.io/github/license/huterguier/lox?color=yellow)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Documentation](https://img.shields.io/badge/docs-available-blue.svg)](https://jax-lox.readthedocs.io/en/latest/)
+[![Code Style: Black](https://img.shields.io/badge/codestyle-black-black.svg)]()
 
 
 [`lox`](https://github.com/huterguier/lox) is a lightweight and flexible logging library for [JAX](https://github.com/jax-ml/jax).
