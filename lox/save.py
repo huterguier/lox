@@ -1,5 +1,6 @@
 import os
 import pickle
+from functools import partial
 from typing import Any, Iterable, Optional
 
 import jax
@@ -70,48 +71,72 @@ def save(
       mode (str): The mode in which to open the file ('a' for append, 'w' for write, 'x' for exclusive creation).
       key (jax.Array, optional): An optional key to differentiate data when saving.
     """
-    jax.debug.callback(
-        save_callback, ordered=True, data=data, path=path, mode=mode, key=key
-    )
+    callback = partial(save_callback, path=path, mode=mode)
+    jax.experimental.io_callback(save_callback, None, data=data, key=key, ordered=True)
 
 
 def load_callback(
     path: StringArray | str,
     result_shape_dtypes: Any,
-    argnames: Iterable[str],
+    argnames: Optional[Iterable[str]] = None,
     key: Optional[Key] = None,
 ) -> dict[str, Any]:
-    def callback(key, path):
-        if key is not None:
-            key_data = jax.random.key_data(key)
-            folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
-            path = path + "/" + folder_name
-        data = {}
+    if isinstance(path, StringArray):
+        path = str(path)
+    if key is not None:
+        key_data = jax.random.key_data(key)
+        folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
+        path = path + "/" + folder_name
+    data = {}
+    if argnames is None:
+        for filename in os.listdir(path):
+            if filename.endswith(".pkl"):
+                argname = filename[:-4]
+                file_path = path + f"/{filename}"
+                with open(file_path, "rb") as f:
+                    data[argname] = pickle.load(f)
+    else:
         for argname in argnames:
             file_path = path + f"/{argname}.pkl"
             with open(file_path, "rb") as f:
                 data[argname] = pickle.load(f)
-        return data
-
-    return jax.experimental.io_callback(
-        callback,
-        result_shape_dtypes,
-        path=path,
-        key=key,
-    )
+    return data
 
 
 def load(
     path: StringArray | str,
     result_shape_dtypes: Any = None,
+    argnames: Optional[Iterable[str]] = None,
     key: Optional[Key] = None,
 ) -> dict[str, Any]:
     """
     Load data from a specified path. Each file in the directory is loaded into a dictionary with the filename (without extension) as the key.
     Args:
       path (lox.String): The path from which the data will be loaded.
+      result_shape_dtypes (Any, optional): The expected shape and dtype of the loaded data.
+      argnames (Iterable[str], optional): Specific argument names to load. If None, all files in the directory are loaded.
       key (jax.Array, optional): An optional key to differentiate data when loading.
     Returns:
         dict[str, Any]: The loaded data.
     """
-    raise NotImplementedError("Load function is not implemented yet.")
+    if result_shape_dtypes is None:
+        logs = load_callback(
+            path=path,
+            result_shape_dtypes=result_shape_dtypes,
+            argnames=argnames,
+            key=key,
+        )
+    else:
+        callback = partial(
+            load_callback,
+            path=path,
+            result_shape_dtypes=result_shape_dtypes,
+            argnames=argnames,
+        )
+        logs = jax.experimental.io_callback(
+            callback,
+            result_shape_dtypes,
+            path=path,
+            key=key,
+        )
+    return logs
