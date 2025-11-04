@@ -72,7 +72,10 @@ def save(
       key (jax.Array, optional): An optional key to differentiate data when saving.
     """
     callback = partial(save_callback, path=path, mode=mode)
-    jax.experimental.io_callback(save_callback, None, data=data, key=key, ordered=True)
+    if key is None:
+        jax.experimental.io_callback(callback, None, data=data)
+    else:
+        jax.experimental.io_callback(callback, None, data=data, key=key, ordered=True)
 
 
 def load_callback(

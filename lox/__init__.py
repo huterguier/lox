@@ -1,7 +1,7 @@
 import lox.wandb as wandb
 from lox.logdict import logdict
 from lox.primitive import log
-from lox.save import save
+from lox.save import load, save
 from lox.spool import spool
 from lox.tap import tap
 
@@ -10,6 +10,7 @@ __all__ = [
     "tap",
     "log",
     "save",
+    "load",
     "logdict",
     "wandb",
 ]
