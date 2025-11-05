@@ -245,14 +245,14 @@ def spool_jaxpr(jaxpr: Jaxpr, argnames: Optional[Sequence[str]]) -> logdict:
         logs_eqn = None
         if eqn.primitive == lox_p:
             logs_eqn = spool_lox_p(jaxpr, eqn, argnames)
-        elif eqn.primitive == jax.lax.scan_p:
+        elif eqn.primitive == jax.extend.core.primitives.scan_p:
             logs_eqn = spool_scan_p(jaxpr, eqn, argnames)
-        elif eqn.primitive == jax.lax.cond_p:
+        elif eqn.primitive == jax.extend.core.primitives.cond_p:
             logs_eqn = spool_cond_p(jaxpr, eqn, argnames)
-        elif eqn.primitive == jax.lax.while_p:
+        elif eqn.primitive == jax.extend.core.primitives.while_p:
             logs_eqn = spool_while_p(jaxpr, eqn, argnames)
-        elif eqn.primitive.name == "pjit":
-            logs_eqn = spool_pjit_p(jaxpr, eqn, argnames)
+        elif eqn.primitive == jax.extend.core.primitives.jit_p:
+            logs_eqn = spool_jit_p(jaxpr, eqn, argnames)
         elif eqn.primitive == jax.extend.core.primitives.call_p:
             logs_eqn = spool_call_p(jaxpr, eqn, argnames)
 
@@ -378,7 +378,7 @@ def spool_while_p(
     return logdict({})
 
 
-def spool_pjit_p(
+def spool_jit_p(
     jaxpr: Jaxpr, eqn: JaxprEqn, argnames: Optional[Sequence[str]]
 ) -> logdict:
     """
