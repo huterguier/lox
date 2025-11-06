@@ -1,4 +1,3 @@
-import lox.wandb as wandb
 from lox.logdict import logdict
 from lox.primitive import log
 from lox.save import load, save
@@ -12,5 +11,4 @@ __all__ = [
     "save",
     "load",
     "logdict",
-    "wandb",
 ]
