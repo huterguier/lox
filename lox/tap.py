@@ -172,19 +172,19 @@ def tap_jaxpr(
                 i += 1
                 modified = True
 
-        elif eqn.primitive == jax.lax.scan_p:
+        elif eqn.primitive == jax.extend.core.primitives.scan_p:
             modified |= tap_jaxpr(eqn.params["jaxpr"].jaxpr, callback, argnames)
 
-        elif eqn.primitive == jax.lax.cond_p:
+        elif eqn.primitive == jax.extend.core.primitives.cond_p:
             branches = eqn.params["branches"]
             for branch in branches:
                 modified |= tap_jaxpr(branch.jaxpr, callback, argnames)
 
-        elif eqn.primitive == jax.lax.while_p:
+        elif eqn.primitive == jax.extend.core.primitives.while_p:
             modified |= tap_jaxpr(eqn.params["cond_jaxpr"].jaxpr, callback, argnames)
             modified |= tap_jaxpr(eqn.params["body_jaxpr"].jaxpr, callback, argnames)
 
-        elif eqn.primitive.name == "pjit":
+        elif eqn.primitive == jax.extend.core.primitives.jit_p:
             modified_call_jaxpr = tap_jaxpr(eqn.params["jaxpr"], callback, argnames)
             if modified_call_jaxpr:
                 eqn.primitive = jax.extend.core.primitives.call_p
