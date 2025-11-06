@@ -7,15 +7,14 @@ name = "lox"
 version = "0.0.1"
 description = "Logging library for JAX that compatible with transformations such as jit and vmap."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 authors = [
   { name = "huterguier", email = "huterguier@gmail.com" }
 ]
 dependencies = [
-  "jax>=0.6.0",
+  "jax>=0.7.0",
   "rich",
-  "wandb>=0.20.1",
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -23,14 +22,19 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-cuda = ["jax[cuda12]>=0.6.0"]
+wandb = [
+  "wandb>=0.20.1",
+]
+neptune = [
+  "neptune-client>=0.18.3",
+]
 dev = [
   "black",
   "isort",
   "pytest",
   "pytest-cov",
 ]
-test = [
+tests = [
   "pytest",
   "pytest-cov",
 ]
