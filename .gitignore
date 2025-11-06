@@ -7,4 +7,4 @@ docs*/**/_autosummary
 docs*/_build
 docs*/**/tmp
 .python-version
-
+uv.lock
