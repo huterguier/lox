@@ -75,7 +75,7 @@ def save(
     if key is None:
         jax.experimental.io_callback(callback, None, data=data)
     else:
-        jax.experimental.io_callback(callback, None, data=data, key=key, ordered=True)
+        jax.experimental.io_callback(callback, None, data=data, key=key)
 
 
 def load_callback(
