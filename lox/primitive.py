@@ -23,6 +23,7 @@ def log(
         data: A dictionary containing the data to be logged.
         explicit: Wether to the data is logged by default or only when explicitly specified.
         steps: Keyword arguments where keys are step names and values are step numbers.
+        prefix: A string prefix to be added to each key in the data dictionary.
 
     Returns:
         logdict: A logdict object containing the logged data and steps.
