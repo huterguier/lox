@@ -95,8 +95,8 @@ def make_tapped_jaxpr(
     Returns:
         Callable[..., ClosedJaxpr | tuple[ClosedJaxpr, Any]]: A wrapped function that returns the jaxpr and logs.
     """
-    if argnames is str:
-        argnames = (argnames,)
+    if isinstance(argnames, str):
+        argnames = [argnames]
 
     def wrapped(*args, **kwargs):
         closed_jaxpr, out_shape = jax.make_jaxpr(
@@ -153,9 +153,9 @@ def tap_jaxpr(
         if eqn.primitive == lox_p:
             structure = eqn.params["structure"]
             logs = jax.tree.unflatten(structure, eqn.invars)
-            if argnames is None and eqn.params["explicit"]:
+            if not argnames and eqn.params["explicit"]:
                 logs = logdict({})
-            elif argnames is not None:
+            elif argnames:
                 logs = logs.filter(lambda k, _: k in argnames)
             logs_avals = jax.tree.map(lambda l: l.aval, logs)
             logs_avals_flat, structure_avals = jax.tree.flatten(logs_avals)

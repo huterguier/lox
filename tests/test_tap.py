@@ -6,6 +6,7 @@ import pytest
 from functions import *
 
 import lox
+from lox import logdict
 
 functions = [
     (f_id),
@@ -30,9 +31,23 @@ def x(request, key):
 
 
 @pytest.mark.parametrize("f", functions)
-def test_spool(f, x):
+def test_tap(f, x):
     with contextlib.redirect_stdout(io.StringIO()) as f_stdout:
         _ = lox.tap(f)(x)
         output = f_stdout.getvalue()
-        print(output)
     assert output.strip() != ""
+
+
+@pytest.mark.parametrize("f", functions)
+def test_tap_spool_equivalence(f, x):
+    global logs_tap
+    logs_tap = logdict({})
+
+    def callback(logs):
+        global logs_tap
+        logs_tap = logs_tap + logs
+
+    _ = lox.tap(f, callback=callback)(x)
+    _, logs_spool = lox.spool(f)(x)
+
+    assert logs_tap.keys() == logs_spool.keys()

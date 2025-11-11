@@ -36,3 +36,17 @@ def test_spool(f, f_spooled, x):
     assert jax.tree.all(
         jax.tree.map(lambda a, b: jax.numpy.allclose(a, b), logs_f, logs_f_spooled)
     )
+
+
+@pytest.mark.parametrize("f, f_spooled", functions)
+def test_spool_argnames(f, f_spooled, x):
+    argnames = ["x"]
+    y_f, logs_f = lox.spool(f, argnames=argnames)(x)
+    y_f_spooled, logs_f_spooled = f_spooled(x)
+    logs_f_spooled = logs_f_spooled.filter(lambda k, _: k in argnames)
+    assert jax.tree.all(
+        jax.tree.map(lambda a, b: jax.numpy.allclose(a, b), y_f, y_f_spooled)
+    )
+    assert jax.tree.all(
+        jax.tree.map(lambda a, b: jax.numpy.allclose(a, b), logs_f, logs_f_spooled)
+    )
