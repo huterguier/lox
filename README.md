@@ -11,13 +11,13 @@
 
 [`lox`](https://github.com/huterguier/lox) is a lightweight and flexible logging library for [JAX](https://github.com/jax-ml/jax).
 All you need to do is decorate your code with `lox.log` statements and `lox` does the rest.
-Using JAX's intermediate function representation Lox can dynamically insert callbacks to log you data, or collect the logs that would have been generated during the execution and return them as part of the output of your function.
+Using JAX's intermediate function representation Lox can dynamically insert callbacks to log your data, or collect the logs that would have been generated during the execution and return them as part of the output of your function.
 While it's obviously possible to implement this functionality yourself, `lox` provides a simple and efficient way to do so without having to carry around boilerplate code in your functions.
 
 ## Features
 - 🔌 **Plug-and-Play:**  Simply add `lox.log` statements where you need them. `lox` handles all the complex boilerplate of plumbing data through JAX's transformations, keeping your function signatures clean and focused on the logic.
 
-- 📦 **Automatic Extraction:**  Instead of explicitly returning data from you functions, `lox.spool` automatically "spools up" all logs generated during a function's execution. It collects them and returns them as a single `logdict` alongside the function's original output.
+- 📦 **Automatic Extraction:**  Instead of explicitly returning data from your functions, `lox.spool` automatically "spools up" all logs generated during a function's execution. It collects them and returns them as a single `logdict` alongside the function's original output.
 
 - 📡 **Dynamic Callbacks:**  Using `lox.tap`, you can "tap into" a JAX-transformed function using custom callbacks. This is ideal for live monitoring and debugging without halting execution.
 
@@ -28,9 +28,9 @@ While it's obviously possible to implement this functionality yourself, `lox` pr
 ## Quick Start
 
 ### Basic API
-At its core `lox` is built around 2 central function transformations calles `tap` and `spool`.
-They work by traversing the functions [`jaxpr`](https://docs.jax.dev/en/latest/jaxpr.html), JAX's internal intermediate function representation, and dynamically alters it to match the desired behavior.
-In order to use them with you function, all you need to do is specify what you want to log using `lox.log`.
+At its core `lox` is built around 2 central function transformations called `tap` and `spool`.
+They work by traversing the function's [`jaxpr`](https://docs.jax.dev/en/latest/jaxpr.html), JAX's internal intermediate function representation, and dynamically alters it to match the desired behavior.
+In order to use them with your function, all you need to do is specify what you want to log using `lox.log`.
 
 ```python
 >>> import jax
@@ -108,7 +108,7 @@ Corresponding Episodes: [0, 0, 1]
 
 Lox comes with built-in loggers for common use cases.
 Loggers support both `lox.tap` and `lox.spool` transformations and let you easily log to different backends.
-An example is `lox.loggers.SaveLogger`, which saves logs to a specified directory in a structured format for later use. Loggers are instantiaded with any necessary configuration, and then initialized with a random key using `init` to produce a logger state. This state is then passed to the `tap` or `spool` transformation along with the function to be logged.
+An example is `lox.loggers.SaveLogger`, which saves logs to a specified directory in a structured format for later use. Loggers are instantiated with any necessary configuration, and then initialized with a random key using `init` to produce a logger state. This state is then passed to the `tap` or `spool` transformation along with the function to be logged.
 
 ```python
 >>> import lox.loggers
@@ -118,7 +118,7 @@ An example is `lox.loggers.SaveLogger`, which saves logs to a specified director
 >>> y = logger.spool(f, logger_state)(xs)
 ```
 
-Loggers can also be combined to log to multiple backends simultaneously using `lox.loggers.MultiLogger`. The difference between `tap` and `spool` is preserved, so you can use `MultiLogger` with either transformation. Hence `spool` only logs once at the env of the function execution, while `tap` logs every time a log is encountered.
+Loggers can also be combined to log to multiple backends simultaneously using `lox.loggers.MultiLogger`. The difference between `tap` and `spool` is preserved, so you can use `MultiLogger` with either transformation. Hence `spool` only logs once at the end of the function execution, while `tap` logs every time a log is encountered.
 
 ```python
 >>> console_logger = lox.loggers.ConsoleLogger()
