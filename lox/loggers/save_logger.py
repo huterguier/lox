@@ -32,15 +32,16 @@ class SaveLogger(Logger[SaveLoggerState]):
             key_data = jax.random.key_data(key)
             folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
             path = self.path + "/" + folder_name
-            if not self.overwrite and os.path.exists(path):
-                overwrite = input(
-                    f"Path {path} already exists. Overwrite? (y/n): "
-                ).lower()
-                if overwrite == "y":
-                    shutil.rmtree(path)
-                else:
-                    raise FileExistsError(f"Path {path} already exists.")
-            os.makedirs(path)
+            if os.path.exists(path):
+                if not self.overwrite:
+                    overwrite = input(
+                        f"Path {path} already exists. Overwrite? (y/n): "
+                    ).lower()
+                    if overwrite != "y":
+                        raise FileExistsError(f"Path {path} already exists.")
+                shutil.rmtree(path)
+            else:
+                os.makedirs(path)
 
         jax.debug.callback(callback, ordered=True, key=key)
 
