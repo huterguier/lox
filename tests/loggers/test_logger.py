@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 
 import pytest
 from functions import *
@@ -14,6 +14,10 @@ functions = [
 
 
 class TestLogger(ABC):
+
+    @abstractmethod
+    def logger(self) -> Logger:
+        pass
 
     @pytest.fixture(params=[0, 1, 2])
     def key(self, request):

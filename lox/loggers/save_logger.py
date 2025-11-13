@@ -9,6 +9,7 @@ from lox.logdict import logdict
 from lox.loggers.logger import Logger, LoggerState
 from lox.save import save, save_callback
 from lox.tap import tap
+from lox.typing import Key
 
 
 @jax.tree_util.register_dataclass
@@ -22,15 +23,16 @@ class SaveLogger(Logger[SaveLoggerState]):
     Logger for saving data to a specified path using JAX's experimental IO callback.
     """
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, overwrite: bool = False):
         self.path = path
+        self.overwrite = overwrite
 
-    def init(self, key: jax.Array) -> SaveLoggerState:
+    def init(self, key: Key) -> SaveLoggerState:
         def callback(key):
             key_data = jax.random.key_data(key)
             folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
             path = self.path + "/" + folder_name
-            if os.path.exists(path):
+            if not self.overwrite and os.path.exists(path):
                 overwrite = input(
                     f"Path {path} already exists. Overwrite? (y/n): "
                 ).lower()
