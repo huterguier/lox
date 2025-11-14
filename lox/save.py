@@ -9,6 +9,7 @@ import jax.numpy as jnp
 
 from lox.string import StringArray
 from lox.typing import Key
+from lox.utils import get_path
 
 
 def save_callback(
@@ -22,9 +23,7 @@ def save_callback(
     if isinstance(path, StringArray):
         path = str(path)
     if key is not None:
-        key_data = jax.random.key_data(key)
-        folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
-        path = path + "/" + folder_name
+        path = get_path(path, key)
 
     for k, v in data.items():
         file = path + f"/{k}.pkl"
@@ -80,16 +79,13 @@ def save(
 
 def load_callback(
     path: StringArray | str,
-    result_shape_dtypes: Any,
     argnames: Optional[Iterable[str]] = None,
     key: Optional[Key] = None,
 ) -> dict[str, Any]:
     if isinstance(path, StringArray):
         path = str(path)
     if key is not None:
-        key_data = jax.random.key_data(key)
-        folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
-        path = path + "/" + folder_name
+        path = get_path(path, key)
     data = {}
     if argnames is None:
         for filename in os.listdir(path):
@@ -125,7 +121,6 @@ def load(
     if result_shape_dtypes is None:
         logs = load_callback(
             path=path,
-            result_shape_dtypes=result_shape_dtypes,
             argnames=argnames,
             key=key,
         )
@@ -133,7 +128,6 @@ def load(
         callback = partial(
             load_callback,
             path=path,
-            result_shape_dtypes=result_shape_dtypes,
             argnames=argnames,
         )
         logs = jax.experimental.io_callback(

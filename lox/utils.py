@@ -2,6 +2,8 @@ from typing import Any, Callable
 
 import jax
 
+from lox.typing import Key
+
 
 def is_hashable(arg):
     """
@@ -26,6 +28,7 @@ def flatten(fun: Callable, structure: Any) -> Callable:
 
     Args:
         fun (Callable): The function to be transformed.
+        structure (Any): The structure used to flatten and unflatten the arguments.
     Returns:
         Callable: A new function that accepts a single flat argument list.
     """
@@ -36,3 +39,19 @@ def flatten(fun: Callable, structure: Any) -> Callable:
         return out
 
     return wrapped
+
+
+def get_path(path: str, key: Key) -> str:
+    """
+    Constructs a new path by appending a key to an existing path.
+
+    Args:
+        path (str): The base path.
+        key (Key): The key to append to the path.
+    Returns:
+        str: The new constructed path.
+    """
+    key_data = jax.random.key_data(key)
+    folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
+    path = path + "/" + folder_name
+    return path

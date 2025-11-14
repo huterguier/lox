@@ -10,6 +10,7 @@ from lox.loggers.logger import Logger, LoggerState
 from lox.save import save, save_callback
 from lox.tap import tap
 from lox.typing import Key
+from lox.utils import get_path
 
 
 @jax.tree_util.register_dataclass
@@ -29,9 +30,7 @@ class SaveLogger(Logger[SaveLoggerState]):
 
     def init(self, key: Key) -> SaveLoggerState:
         def callback(key):
-            key_data = jax.random.key_data(key)
-            folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
-            path = self.path + "/" + folder_name
+            path = get_path(self.path, key)
             if os.path.exists(path):
                 if not self.overwrite:
                     overwrite = input(
