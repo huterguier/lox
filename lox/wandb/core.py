@@ -3,8 +3,8 @@ from functools import partial
 
 import jax
 import jax.experimental
-
 import wandb
+
 from lox import logdict
 from lox.string import StringArray
 from lox.typing import Key
@@ -64,9 +64,10 @@ def log(run: WandbRun, logs: logdict):
                 run.log(ordered_data[step], step=step)
         else:
             leaves = jax.tree.leaves(logs)
-            assert all([len(leaf) == len(leaves[0]) for leaf in leaves])
-            for i in range(len(leaves[0])):
-                run.log(jax.tree.map(lambda l: l[i], logs))
+            if leaves:
+                assert all([len(leaf) == len(leaves[0]) for leaf in leaves])
+                for i in range(len(leaves[0])):
+                    run.log(jax.tree.map(lambda l: l[i], logs))
 
     jax.debug.callback(callback, ordered=True, id=run.id, logs=logs)
     return
