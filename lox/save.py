@@ -88,12 +88,15 @@ def load_callback(
         path = get_path(path, key)
     data = {}
     if argnames is None:
-        for filename in os.listdir(path):
-            if filename.endswith(".pkl"):
-                argname = filename[:-4]
-                file_path = path + f"/{filename}"
-                with open(file_path, "rb") as f:
-                    data[argname] = pickle.load(f)
+        for root, _, files in os.walk(path):
+            dir = os.path.relpath(root, path)
+            for file in files:
+                filename = os.path.normpath(os.path.join(dir, file))
+                if filename.endswith(".pkl"):
+                    argname = filename[:-4]
+                    file_path = path + f"/{filename}"
+                    with open(file_path, "rb") as f:
+                        data[argname] = pickle.load(f)
     else:
         for argname in argnames:
             file_path = path + f"/{argname}.pkl"
