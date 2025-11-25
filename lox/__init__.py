@@ -1,4 +1,5 @@
 from lox.logdict import logdict
+from lox.loggers.logger import Logger, LoggerState
 from lox.primitive import log
 from lox.save import load, save
 from lox.spool import spool
@@ -11,4 +12,6 @@ __all__ = [
     "save",
     "load",
     "logdict",
+    "Logger",
+    "LoggerState",
 ]
