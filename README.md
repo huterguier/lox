@@ -121,9 +121,10 @@ An example is `lox.loggers.SaveLogger`, which saves logs to a specified director
 Loggers can also be combined to log to multiple backends simultaneously using `lox.loggers.MultiLogger`. The difference between `tap` and `spool` is preserved, so you can use `MultiLogger` with either transformation. Hence `spool` only logs once at the end of the function execution, while `tap` logs every time a log is encountered.
 
 ```python
->>> console_logger = lox.loggers.ConsoleLogger()
->>> save_logger = lox.loggers.SaveLogger("./.lox/")
->>> multi_logger = lox.loggers.MultiLogger(console_logger, save_logger)
+>>> from lox.loggers import ConsoleLogger, MultiLogger, SaveLogger
+>>> console_logger = ConsoleLogger()
+>>> save_logger = SaveLogger(".lox/")
+>>> multi_logger = MultiLogger(console_logger, save_logger)
 >>> multi_logger_state = multi_logger.init(key)
 >>> y = multi_logger.tap(f, multi_logger_state)(xs)
 ```
