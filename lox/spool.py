@@ -11,6 +11,7 @@ from typing import (
 )
 
 import jax
+import jax._src.ad_checkpoint
 import jax.core
 import jax.extend
 from jax import ShapeDtypeStruct
@@ -255,6 +256,8 @@ def spool_jaxpr(jaxpr: Jaxpr, argnames: Optional[Iterable[str]]) -> logdict:
             logs_eqn = spool_jit_p(jaxpr, eqn, argnames)
         elif eqn.primitive == jax.extend.core.primitives.call_p:
             logs_eqn = spool_call_p(jaxpr, eqn, argnames)
+        elif eqn.primitive == jax._src.ad_checkpoint.remat_p:
+            logs_eqn = spool_remat_p(jaxpr, eqn, argnames)
 
         if logs_eqn:
             logs_eqns.append(logs_eqn)
@@ -439,6 +442,29 @@ def spool_call_p(
     logs_call_jaxpr = spool_jaxpr(eqn.params["call_jaxpr"], argnames)
     logs_eqn = jax.tree.map(
         lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_call_jaxpr
+    )
+    eqn.outvars.extend(jax.tree_util.tree_leaves(logs_eqn))
+    return logs_eqn
+
+
+def spool_remat_p(
+    jaxpr: Jaxpr, eqn: JaxprEqn, argnames: Optional[Iterable[str]]
+) -> logdict:
+    """
+    Spools the jaxpr of a remat_p primitive. This is used to handle the case where a function is rematerialized
+    within a jaxpr, allowing us to track logs from the rematerialized function.
+
+    Args:
+        jaxpr (Jaxpr): The jaxpr containing the remat operation.
+        eqn (JaxprEqn): The equation representing the remat operation.
+        argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
+    Returns:
+        tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
+    """
+    del jaxpr
+    logs_remat_jaxpr = spool_jaxpr(eqn.params["jaxpr"], argnames)
+    logs_eqn = jax.tree.map(
+        lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_remat_jaxpr
     )
     eqn.outvars.extend(jax.tree_util.tree_leaves(logs_eqn))
     return logs_eqn

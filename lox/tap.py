@@ -2,6 +2,7 @@ from functools import wraps
 from typing import Any, Callable, Hashable, Iterable, Sequence
 
 import jax
+import jax._src.ad_checkpoint
 import jax.core
 import jax.extend
 from jax.extend.core import ClosedJaxpr, Jaxpr
@@ -193,6 +194,9 @@ def tap_jaxpr(
 
         elif eqn.primitive == jax.extend.core.primitives.call_p:
             modified |= tap_jaxpr(eqn.params["call_jaxpr"], callback, argnames)
+
+        elif eqn.primitive == jax._src.ad_checkpoint.remat_p:
+            modified |= tap_jaxpr(eqn.params["jaxpr"], callback, argnames)
 
         i += 1
     return modified
