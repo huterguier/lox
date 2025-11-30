@@ -145,9 +145,18 @@ If you use ``lox`` in your research, feel free to cite it as follows.
 ```{toctree}
 :hidden:
 :maxdepth: 2
+:caption: Introduction
 
 quick_start
+why_lox
 the_sharp_bits
 examples
+```
+
+```{toctree}
+:hidden:
+:maxdepth: 2
+:caption: API
+
 api
 ```

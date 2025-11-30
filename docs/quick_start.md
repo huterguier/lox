@@ -1,10 +1,8 @@
 # Quick Start
 
-## What is Lox?
-
-Logging in JAX is notoriously tedious and cumbersome.
-JAX is purposefully designed to be a functional programming framework.
-As a consequence one is left with 2 main options for logging in Jax.
+Logging in JAX can be incredibly tedious and cumbersome.
+JAX is purposefully designed to be fully functional,
+  and as a consequence one is left with 2 main options for logging in Jax.
 
 <style>
     ol > li::marker {
@@ -12,152 +10,168 @@ As a consequence one is left with 2 main options for logging in Jax.
     }
 </style>
 <ol>
-  <li> Using <a href="https://docs.jax.dev/en/latest/external-callbacks.html">callbacks</a> to log data. While this is the easiest most flexible way to log data, callbacks come with a cost.
-  Executing callbacks creates a significant overhead, which can, especially when done frequently, slow down execution tremendously.</li>
-  <li> The second option is to treat the logs as a part of the computation graph. While this is the most efficient way to log data, it can be quite tedious to implement, as it
-  requires you to manually add the logs as part of the function output. Additionally, this often creates a bloated function signature, which is not ideal for readability and maintainability.</li>
+  <li> 
+    Using <a href="https://docs.jax.dev/en/latest/external-callbacks.html">callbacks</a> to log data. 
+    While this is the easiest most flexible way to log data, callbacks come with a cost.
+    Executing callbacks creates a non-negligable overhead, which can, especially when done frequently, 
+      slow down execution tremendously.
+    Moreover, these callbacks need to be inserted manually, which can clutter the code and make it less readable.
+  </li>
+  <li> 
+    The second option is to treat the logs as a part of the computation graph. 
+    While this is the most efficient way to log data, it can be quite tedious to implement, as it
+      requires you to manually add the logs as part of the function output. 
+    Additionally, this usually creates a bloated function signature, 
+      which is not ideal for readability and maintainability.
+  </li>
 </ol>
 
-Quite often, it is best to use a tradeoff between the two options.
-For example you might want to use spool to collect the logs of a single train step and then
-use a callback to log the data at the end of the step.
 
+## What is `lox`?
+
+`lox` is a lightweight logging library for JAX that aims to dramatically simplify these two approaches.
+It takes care of all the boilerplate code that is usually required.
+With `lox`, you can easily log data in a JAX function without cluttering your code with print statements or callbacks.
+`lox` provides two fundamental function transformations, `lox.tap` and `lox.spool`, that
+  allow you to either stream logs in real time using a callback or collect all logs and return them as part of the function output.
+Lox also provides a variety of loggers that can be used to write the logs to different backends.
 
 ## How does it work?
 
-Lox is not a logging library in the traditional sense.
-By default `lox.log` is a no-op, and it is not meant to be used for logging on its own.
-The only thing it does is to insert a JAX [primitive](https://docs.jax.dev/en/latest/jax-primitives.html) that specifies that a values that should be logged.
+`lox` is not a logging library in the traditional sense.
+By default the core function `lox.log` is a no-op, and it is not meant to be used for logging on its own.
+The only thing it does is to insert a JAX [primitive](https://docs.jax.dev/en/latest/jax-primitives.html),
+  that specifies that the values that you want to log in a dictionary format.
 Lox then applies a function transformation that, based on these primitives, modifies the
-function to either insert a callback or to collect the logs and return them as part of the function output.
+    function to either insert a callback or to collect the logs and return them as part of the function output.
 
 
 ## Example
 
 In the following example, we will illustrate how to use Lox to log data in a JAX function.
-We will first define a simple pure JAX function, then we will decorate it with `lox.log` statements to specify which values we want to log, and finally we will use Lox's function transformations to access the logs.
-
-### 1. A simple JAX function
-
-The example is a simple function that computes the mean and standard deviation of a list of numbers using gradient descent.
-The function `f` takes a list of numbers `xs` and returns the mean and standard deviation of the numbers.
-It does so by iterating over the individual values `x` in `xs` and updating the mean and standard deviation using gradient descent.
+We will first define a simple pure JAX function,
+  then we will decorate it with `lox.log` statements to specify which values we want to log,
+  and finally we will use Lox's function transformations to access the logs.
+To illustrate how Lox works, 
+  we will define a simple JAX function that performs a few optimization steps using gradient descent.
+The function takes in a sequence of data points and approximates their mean by minimizing the mean squared error.
 
 ```python
->>> import jax
->>> import jax.numpy as jnp
+import jax
+import lox
 
->>> def f(xs):
-...     mean, std = 0.0, 1.0
-...     params = (mean, std)
-...
-...     def step(params, x):
-...         def loss(params):
-...             mean, std = params
-...             loss_mean = (mean - x) ** 2
-...             std_x = jnp.abs(mean - x) / jnp.sqrt(2.0 / jnp.pi)
-...             loss_std = (std_x - std) ** 2
-...             return loss_mean + loss_std
-...
-...         gradient = jax.grad(loss)(params)
-...         params = jax.tree_util.tree_map(lambda p, g: p - 1e-4 * g, params, gradient)
-...         return params, None
-...
-...     (mean, std), _ = jax.lax.scan(step, params, xs)
-...     return mean, std
+def f(xs):
+    def step(mean, x):
+        def loss(mean):
+            diff = mean - x
+            loss = (diff) ** 2
+            return loss
+        gradient = jax.grad(loss)(mean)
+        params = jax.tree_util.tree_map(lambda p, g: p - 1e-2 * g, mean, gradient)
+        return params, None
+    mean = 0.0
+    mean, _ = jax.lax.scan(step, mean, xs)
+    return mean
 ```
 
 
-### 2. Decorating the function with `lox.log`
+### 1. Decorating the function with `lox.log`
 
-In order to use Lox, we need to decorate the function with `lox.log` statements to specify which values we want to log.
+In order to use Lox, we need to decorate the function with `lox.log` statements. 
+  These specify which values we want to log during the function execution.
 `lox.log` takes a single positional argument, which is the dictionary of values to log.
 All additional keyword arguments are treated as timesteps and will be logged as well.
-For the sake of simplicity, we wont use any timesteps in this example, but you can refer to the [API documentation](api.md) for more details on how to use timesteps.
-In this example, we are interested in logging the mean and standard deviation of the parameters, as well as the loss values for each step.
--- we only use scalars in this example but can be pytrees but make sure same shape
-While we only use scalars in this example, Lox can also log Arrays and PyTrees.
-When logging with the same key multiple times, it is important to ensure that the values have the same shape as `lox.spool` will concatenate the values along the first axis.
+For the sake of simplicity, we wont use any timesteps in this example,
+  but you can refer to the [API documentation](api.md) for more details on how to use timesteps.
+In this example, 
+  we are interested in logging the signed difference between the current mean and the data point.
+
+```{code-block} python
+:emphasize-lines: 6
+def f(xs):
+    def step(mean, x):
+        def loss(mean):
+            diff = mean - x
+            loss = (diff) ** 2
+            lox.log({"diff": diff})
+            return loss
+        gradient = jax.grad(loss)(mean)
+        params = jax.tree_util.tree_map(lambda p, g: p - 1e-2 * g, mean, gradient)
+        return params, None
+    mean = 0.0
+    mean, _ = jax.lax.scan(step, mean, xs)
+    return mean
+```
+
+
+### 2. Collecting logs using `lox.spool`
+
+Now that we have decorated the function with `lox.log`, 
+  we can use function transformations to access the data.
+`lox.spool` is a function transformation "spools up" all logs during execution and returns them alongside the function's output. 
+This is especially useful when frequent callbacks would be too expensive. 
+The collected logs can then be handled after the function execution.
 
 ```python
->>> import lox
-
->>> def f(xs):
-...     mean, std = 0.0, 1.0
-...     params = (mean, std)
-...
-...     def step(params, x):
-...         def loss(params):
-...             mean, std = params
-...             loss_mean = (mean - x) ** 2
-...             std_x = jnp.abs(mean - x) / jnp.sqrt(2.0 / jnp.pi)
-...             loss_std = (std_x - std) ** 2
-...             lox.log({
-...               "loss_mean": loss_mean, 
-...               "loss_std": loss_std, 
-...               "loss": loss_mean + loss_std
-...             })
-...             return loss_mean + loss_std
-...
-...         gradient = jax.grad(loss)(params)
-...         params = jax.tree_util.tree_map(lambda p, g: p - 1e-4 * g, params, gradient)
-...         lox.log({"mean": params[0], "std": params[1]})
-...         return params, None
-...
-...     (mean, std), _ = jax.lax.scan(step, params, xs)
-...     return mean, std
+>>> mean = 10.0
+>>> xs = jax.random.normal(jax.random.key(0), (3,)) + mean
+>>> y, logs = lox.spool(f)(xs)
+>>> print("Collected Logs:", logs)
+Collected Logs: {'diff': Array([-11.6226425, -11.792812, -9.098096, -9.2711115, -9.340398], dtype=float32)}
 ```
+
+In this simple example collecting the logs manually would not be too difficult.
+However, in more complex scenarios with nested functions and multiple logging points,
+  manually collecting logs can become quite tedious and error-prone.
+`lox.spool` takes care of all the boilerplate code for you,
 
 ### 3. Accessing the logs using `lox.tap`
 
-Now that we have decorated the function with `lox.log`, we can use Lox's function transformations to access the data.
-The transformation `lox.tap` lets you "tap into" function execution by attaching a callback that receives logs as they're generated. It streams logs in real time, making it great for debugging or live monitoring.
+The second transformation `lox.tap` let's you "tap into" function execution by attaching a callback that receives logs as they're generated. 
+It streams logs in real time, making it great for debugging or live monitoring.
+The cool thing bout it is that you can define the callback function once, 
+  and `lox` automatically inserts it at every logging point in the function.
 
 ```python
 >>> def callback(logs):
-...     print("Logging:", logs)
+...     print("Logging:", logs, flush=True)
 >>> y = lox.tap(f, callback=callback)(xs)
 
-Logging:  {'loss': 460.6522216796875, 'loss_mean': 192.3193817138672, 'loss_std': 268.3328552246094}
-Logging:  {'mean': 0.0068796598352491856, 'std': 1.0032762289047241}
-Logging:  {'loss': 546.866943359375, 'loss_mean': 227.07217407226562, 'loss_std': 319.7947692871094}
-Logging:  {'mean': 0.014375997707247734, 'std': 1.0068527460098267}
-Logging:  {'loss': 133.441650390625, 'loss_mean': 59.05677795410156, 'loss_std': 74.3848648071289}
-Logging:  {'mean': 0.018074849620461464, 'std': 1.0085777044296265}
+Logging: {'diff': Array([-11.6226425], dtype=float32)}
+Logging: {'diff': Array([-11.792812], dtype=float32)}
+Logging: {'diff': Array([-9.098096], dtype=float32)}
+Logging: {'diff': Array([-9.2711115], dtype=float32)}
+Logging: {'diff': Array([-9.340398], dtype=float32)}
 ```
 
-The great thing about `lox.tap` is that you can selectively log only the values you are interested in, without cluttering your function with print statements or other logging code.
-By setting the keyword argument `argnames`to a desired sequence of strings, you can specify which values to log.
-If, for example, we are only interested in the mean and standard deviation, we can do the following:
+Another great thing about `lox.tap` is that you can also selectively log only the values you are interested in.
+By setting the keyword argument `argnames` to a desired iterable of strings, 
+  you can specify which values to log.
+The selection will be done during compiliation time, 
+  so there is no runtime overhead for filtering out unwanted logs.
 
+### 4. Using Loggers
+
+`lox` provides a variety of loggers that can be used to write the logs to different backends.
+Loggers also support the two main function transformations, `lox.tap` and `lox.spool`.
+For example, you can use the `lox.loggers.SaveLogger` to save the logs to a file.
 ```python
->>> y = lox.tap(f, callback=callback, argnames=["mean", "std"])(xs)
-Logging:  {'mean': 0.0068796598352491856, 'std': 1.0032762289047241}
-Logging:  {'mean': 0.014375997707247734, 'std': 1.0068527460098267}
-Logging:  {'mean': 0.018074849620461464, 'std': 1.0085777044296265}
+from lox.loggers import SaveLogger
+logger = SaveLogger("logs.pkl")
+logger_state = logger.init(jax.random.key(0))
+y = logger.tap(f, logger_state)(xs)
 ```
-
-### 4. Collecting logs using `lox.spool`
-
-The other fundamental transformation `lox.spool`, "spools up" all logs during execution and returns them alongside the function's output. 
-This is especially useful when frequent callbacks would be too expensive. 
-
+These loggers are also fully compatible with `vmap`.
+In the following example, 
+  we will use the `WandBLogger` to log the data of 5 parallel runs to Weights and Biases.
 ```python
->>> y, logs = lox.spool(f)(xs)
->>> print("Collected Logs:", logs)
-Collected Logs: {
-    'mean': array([0.00687966, 0.014376  , 0.01807485]),
-    'std': array([1.0032762 , 1.0068527 , 1.0085777 ]),
-    'loss_mean': array([192.31938, 227.07217,  59.05678]),
-    'loss_std': array([268.33286, 319.79477,  74.384865]),
-    'loss': array([460.65222, 546.86694, 133.44165])
-}
+from lox.wandb import WandBLogger
+logger = WandBLogger(project="lox", name="experiment")
+def g(key):
+    xs = jax.random.normal(key, (10,)) + mean
+    logger_state = logger.init(key)
+    y = logger.tap(f, logger_state)(xs)
+    return xs
+keys = jax.random.split(jax.random.key(0), 5)
+y = jax.vmap(g)(keys)
 ```
-
-Often times it can be useful to use a combination of `lox.tap` and `lox.spool`.
-
-## 5. Using Loggers
-
-Lox provides a variety of loggers that can be used to write the logs to different backends.
-A logger can also be passed directly to `lox.spool`.
-Doing this will cause the logs to be written to the logger instead of being returned as part of the function output.
