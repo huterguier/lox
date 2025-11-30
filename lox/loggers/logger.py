@@ -6,7 +6,7 @@ from typing import Callable, Generic, Optional, Sequence, TypeVar
 import jax
 
 from lox.logdict import logdict
-from lox.spool import spool
+from lox.spooling import spool
 
 
 @jax.tree_util.register_dataclass

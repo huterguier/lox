@@ -11,7 +11,7 @@ from rich.table import Table
 
 from lox.logdict import logdict
 from lox.loggers.logger import Logger, LoggerState
-from lox.tap import tap
+from lox.tapping import tap
 
 
 @jax.tree_util.register_dataclass

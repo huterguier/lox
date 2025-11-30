@@ -8,7 +8,7 @@ import jax
 from lox.logdict import logdict
 from lox.loggers.logger import Logger, LoggerState
 from lox.save import save, save_callback
-from lox.tap import tap
+from lox.tapping import tap
 from lox.typing import Key
 from lox.utils import get_path
 
