@@ -10,22 +10,26 @@ Core API
    lox.log
    lox.tap
    lox.spool
-   lox.util
-   lox.String
+   lox.StringArray
    lox.logdict
+   lox.save
+   lox.load
 
-
-
-Weights and Biases Integration
-------------------------------
+Modules
+--------
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: _autosummary   # folder to generate the .rst files
+   :hidden:
 
-   lox.wandb.init
-   lox.wandb.log
-   lox.wandb.finish
-   lox.wandb.Run
-
-.. toctree:: _autosummary
    lox.wandb
+
+.. autosummary::
+
+   lox.wandb
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
+
+   api/wandb
