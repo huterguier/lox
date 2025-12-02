@@ -10,7 +10,6 @@ Core API
    lox.log
    lox.tap
    lox.spool
-   lox.StringArray
    lox.logdict
    lox.save
    lox.load
@@ -20,7 +19,6 @@ Modules
 
 .. autosummary::
    :toctree: _autosummary   # folder to generate the .rst files
-   :hidden:
 
    lox.wandb
 
