@@ -18,16 +18,13 @@ Modules
 --------
 
 .. autosummary::
-   :toctree: _autosummary   # folder to generate the .rst files
 
    lox.wandb
-
-.. autosummary::
-
-   lox.wandb
+   lox.loggers
 
 .. toctree::
    :hidden:
    :maxdepth: 2
 
    api/wandb
+   api/loggers
