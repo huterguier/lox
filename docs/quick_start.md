@@ -63,8 +63,8 @@ import lox
 def f(xs):
     def step(mean, x):
         def loss(mean):
-            diff = mean - x
-            loss = (diff) ** 2
+            difference = mean - x
+            loss = (difference) ** 2
             return loss
         gradient = jax.grad(loss)(mean)
         params = jax.tree_util.tree_map(lambda p, g: p - 1e-2 * g, mean, gradient)
@@ -91,9 +91,9 @@ In this example,
 def f(xs):
     def step(mean, x):
         def loss(mean):
-            diff = mean - x
-            loss = (diff) ** 2
-            lox.log({"diff": diff})
+            difference = mean - x
+            loss = (difference) ** 2
+            lox.log({"difference": difference})
             return loss
         gradient = jax.grad(loss)(mean)
         params = jax.tree_util.tree_map(lambda p, g: p - 1e-2 * g, mean, gradient)
@@ -117,7 +117,7 @@ The collected logs can then be handled after the function execution.
 >>> xs = jax.random.normal(jax.random.key(0), (3,)) + mean
 >>> y, logs = lox.spool(f)(xs)
 >>> print("Collected Logs:", logs)
-Collected Logs: {'diff': Array([-11.6226425, -11.792812, -9.098096, -9.2711115, -9.340398], dtype=float32)}
+Collected Logs: {'difference': Array([-11.6226425, -11.792812, -9.098096, -9.2711115, -9.340398], dtype=float32)}
 ```
 
 In this simple example collecting the logs manually would not be too difficult.
@@ -134,14 +134,14 @@ The cool thing bout it is that you can define the callback function once,
 
 ```python
 >>> def callback(logs):
-...     print("Logging:", logs, flush=True)
+...     print("Logging:", logs)
 >>> y = lox.tap(f, callback=callback)(xs)
 
-Logging: {'diff': Array([-11.6226425], dtype=float32)}
-Logging: {'diff': Array([-11.792812], dtype=float32)}
-Logging: {'diff': Array([-9.098096], dtype=float32)}
-Logging: {'diff': Array([-9.2711115], dtype=float32)}
-Logging: {'diff': Array([-9.340398], dtype=float32)}
+Logging: {'difference': Array([-11.6226425], dtype=float32)}
+Logging: {'difference': Array([-11.792812], dtype=float32)}
+Logging: {'difference': Array([-9.098096], dtype=float32)}
+Logging: {'difference': Array([-9.2711115], dtype=float32)}
+Logging: {'difference': Array([-9.340398], dtype=float32)}
 ```
 
 Another great thing about `lox.tap` is that you can also selectively log only the values you are interested in.
@@ -163,10 +163,10 @@ y = logger.tap(f, logger_state)(xs)
 ```
 These loggers are also fully compatible with `vmap`.
 In the following example, 
-  we will use the `WandBLogger` to log the data of 5 parallel runs to Weights and Biases.
+  we will use the `WandbLogger` to log the data of 5 parallel runs to Weights and Biases.
 ```python
-from lox.wandb import WandBLogger
-logger = WandBLogger(project="lox", name="experiment")
+from lox.wandb import WandbLogger
+logger = WandbLogger(project="lox", name="experiment")
 def g(key):
     xs = jax.random.normal(key, (10,)) + mean
     logger_state = logger.init(key)
