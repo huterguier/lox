@@ -1,6 +1,5 @@
 from functools import wraps
-from typing import (Any, Callable, Hashable, Iterable, Literal, Optional,
-                    Sequence, overload)
+from typing import Any, Callable, Hashable, Iterable, Literal, Sequence, overload
 
 import jax
 import jax._src.ad_checkpoint
@@ -12,8 +11,8 @@ from jax.core import ShapedArray
 from jax.extend.core import ClosedJaxpr, Jaxpr, JaxprEqn, Var
 
 from lox.logdict import logdict
-from lox.nolog import strip_jaxpr
 from lox.primitive import lox_p
+from lox.stripping import strip_jaxpr
 from lox.utils import flatten, is_hashable
 
 AxisName = Hashable
@@ -21,10 +20,11 @@ AxisName = Hashable
 
 def spool(
     fun: Callable,
-    argnames: Optional[Iterable[str]] = None,
+    argnames: Iterable[str] | None = None,
+    tags: Iterable[str] | None = None,
     keep_logs: bool = False,
-    interval: Optional[int] = None,
-    reduce: Optional[str] = None,
+    interval: int | None = None,
+    reduce: str | None = None,
     prefix: str = "",
 ) -> Callable:
     """
@@ -38,10 +38,11 @@ def spool(
 
     Args:
         fun (Callable): The function to be spooled.
-        argnames (Optional[str]): An optional list of argument names for the function.
+        argnames (Iterable[str] | None): An optional list of argument names to be spooled.
+        tags (Iterable[str] | None): An optional list of tags to filter the logs.
         keep_logs (bool): Whether to keep logs in the jaxpr.
-        interval (Optional[int]): An optional interval to subsample the logs.
-        reduce (Optional[int | str]): An optional reduction operation to apply to the logs.
+        interval (int | None): An optional interval to subsample the logs.
+        reduce (str | None): An optional reduction method to apply to the logs.
         prefix (str): An optional prefix to add to the log keys.
 
     Returns:
@@ -97,6 +98,7 @@ def spool(
             static_argnums=static_argnums,
             return_shape=True,
             argnames=argnames,
+            tags=tags,
             keep_logs=keep_logs,
         )(*args_flat)
         dynamic_args_flat = tuple(arg for arg in args_flat if not is_hashable(arg))
@@ -125,7 +127,8 @@ def make_spooled_jaxpr(
     axis_env: Sequence[tuple[AxisName, int]] | None = None,
     return_shape: Literal[False] = ...,
     abstracted_axes: Any | None = None,
-    argnames: Optional[Iterable[str]] = None,
+    argnames: Iterable[str] | None = None,
+    tags: Iterable[str] | None = None,
     keep_logs: bool = False,
 ) -> Callable[..., ClosedJaxpr]: ...
 
@@ -137,7 +140,8 @@ def make_spooled_jaxpr(
     axis_env: Sequence[tuple[AxisName, int]] | None = None,
     return_shape: Literal[True] = ...,
     abstracted_axes: Any | None = None,
-    argnames: Optional[Iterable[str]] = None,
+    argnames: Iterable[str] | None = None,
+    tags: Iterable[str] | None = None,
     keep_logs: bool = False,
 ) -> Callable[..., tuple[ClosedJaxpr, Any]]: ...
 
@@ -148,7 +152,8 @@ def make_spooled_jaxpr(
     axis_env: Sequence[tuple[AxisName, int]] | None = None,
     return_shape: bool = False,
     abstracted_axes: Any | None = None,
-    argnames: Optional[Iterable[str]] = None,
+    argnames: Iterable[str] | None = None,
+    tags: Iterable[str] | None = None,
     keep_logs: bool = False,
 ) -> Callable[..., ClosedJaxpr] | Callable[..., tuple[ClosedJaxpr, Any]]:
     """
@@ -161,6 +166,7 @@ def make_spooled_jaxpr(
         return_shape (bool): Whether to return the shape of the output.
         abstracted_axes (Any | None): Abstracted axes for the jaxpr.
         argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
+        tags (Optional[Iterable[str]]): An optional list of tags to filter the logs.
         keep_logs (bool): Whether to keep logs in the jaxpr.
     Returns:
         Callable[..., ClosedJaxpr | tuple[ClosedJaxpr, Any]]: A wrapped function that returns the jaxpr and logs.
@@ -174,7 +180,7 @@ def make_spooled_jaxpr(
             return_shape=True,
             abstracted_axes=abstracted_axes,
         )(*args, **kwargs)
-        logs = spool_jaxpr(closed_jaxpr.jaxpr, argnames=argnames)
+        logs = spool_jaxpr(closed_jaxpr.jaxpr, argnames=argnames, tags=tags)
         logs_shape = jax.tree_util.tree_map(
             lambda v: ShapeDtypeStruct(v.aval.shape, v.aval.dtype), logs
         )
@@ -222,7 +228,9 @@ def apply(f: Callable, jaxpr: Jaxpr, *invars: Any) -> Any:
     return outvars
 
 
-def spool_jaxpr(jaxpr: Jaxpr, argnames: Optional[Iterable[str]]) -> logdict:
+def spool_jaxpr(
+    jaxpr: Jaxpr, argnames: Iterable[str] | None, tags: Iterable[str] | None
+) -> logdict:
     """
     Spools the logs from a jaxpr, extracting logs and their shapes from each equation.
     Combines logs from nested equations in the order they will be executed.
@@ -232,24 +240,104 @@ def spool_jaxpr(jaxpr: Jaxpr, argnames: Optional[Iterable[str]]) -> logdict:
     Returns:
         tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
     """
+
+    def spool_lox_p(eqn: JaxprEqn) -> logdict:
+        logs_eqn = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
+        if not argnames and eqn.params["explicit"]:
+            logs_eqn = logdict({})
+        elif argnames:
+            logs_eqn = logs_eqn.filter(lambda k, _: k in argnames)
+        return logs_eqn
+
+    def spool_scan_p(eqn: JaxprEqn) -> logdict:
+        logs_jaxpr = spool_jaxpr(eqn.params["jaxpr"].jaxpr, argnames, tags)
+        logs_jaxpr_avals = jax.tree_util.tree_map(lambda l: l.aval, logs_jaxpr)
+        logs_scan_avals = jax.tree_util.tree_map(
+            lambda aval: ShapedArray((eqn.params["length"],) + aval.shape, aval.dtype),
+            logs_jaxpr_avals,
+        )
+        logs_scan = jax.tree.map(lambda aval: Var(aval=aval), logs_scan_avals)
+        eqn.outvars.extend(jax.tree.leaves(logs_scan))
+
+        def unstack(logs_scan):
+            return jax.tree.map(
+                lambda l: l.reshape((-1,) + l.shape[2:]),
+                logs_scan,
+            )
+
+        logs_eqn = apply(unstack, jaxpr, logs_scan)
+        return logs_eqn
+
+    def spool_cond_p(eqn: JaxprEqn) -> logdict:
+        branches = eqn.params["branches"]
+        logs_branches = []
+        for branch in branches:
+            logs_branch = spool_jaxpr(branch.jaxpr, argnames, tags)
+            logs_branches.append(logs_branch)
+        logs_eqn = jax.tree.map(
+            lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)),
+            logs_branches[0],
+        )
+        eqn.outvars.extend(jax.tree.leaves(logs_eqn))
+        return logs_eqn
+
+    def spool_while_p(eqn: JaxprEqn) -> logdict:
+        logs_cond = spool_jaxpr(eqn.params["cond_jaxpr"].jaxpr, argnames, tags)
+        logs_body = spool_jaxpr(eqn.params["body_jaxpr"].jaxpr, argnames, tags)
+        if logs_cond or logs_body:
+            raise ValueError(
+                "Spooling for while loops is not supported due to non-static length."
+            )
+        return logdict({})
+
+    def spool_jit_p(eqn: JaxprEqn) -> logdict:
+        logs_jaxpr = spool_jaxpr(eqn.params["jaxpr"].jaxpr, argnames, tags)
+        if logs_jaxpr:
+            logs_eqn = jax.tree.map(
+                lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_jaxpr
+            )
+            eqn.outvars.extend(jax.tree.leaves(logs_eqn))
+            eqn.primitive = jax.extend.core.primitives.call_p
+            eqn.params = {"call_jaxpr": eqn.params["jaxpr"].jaxpr}
+            return logs_eqn
+        else:
+            return logdict({})
+
+    def spool_call_p(eqn: JaxprEqn) -> logdict:
+        logs_call_jaxpr = spool_jaxpr(eqn.params["call_jaxpr"], argnames, tags)
+        logs_eqn = jax.tree.map(
+            lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_call_jaxpr
+        )
+        eqn.outvars.extend(jax.tree_util.tree_leaves(logs_eqn))
+        return logs_eqn
+
+    def spool_remat_p(eqn: JaxprEqn) -> logdict:
+        logs_remat_jaxpr = spool_jaxpr(eqn.params["jaxpr"], argnames, tags)
+        logs_eqn = jax.tree.map(
+            lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)),
+            logs_remat_jaxpr,
+        )
+        eqn.outvars.extend(jax.tree_util.tree_leaves(logs_eqn))
+        return logs_eqn
+
     logs_eqns = []
     for i in range(len(jaxpr.eqns)):
         eqn = jaxpr.eqns[i]
         logs_eqn = None
         if eqn.primitive == lox_p:
-            logs_eqn = spool_lox_p(jaxpr, eqn, argnames)
+            logs_eqn = spool_lox_p(eqn)
         elif eqn.primitive == jax.extend.core.primitives.scan_p:
-            logs_eqn = spool_scan_p(jaxpr, eqn, argnames)
+            logs_eqn = spool_scan_p(eqn)
         elif eqn.primitive == jax.extend.core.primitives.cond_p:
-            logs_eqn = spool_cond_p(jaxpr, eqn, argnames)
+            logs_eqn = spool_cond_p(eqn)
         elif eqn.primitive == jax.extend.core.primitives.while_p:
-            logs_eqn = spool_while_p(jaxpr, eqn, argnames)
+            logs_eqn = spool_while_p(eqn)
         elif eqn.primitive == jax.extend.core.primitives.jit_p:
-            logs_eqn = spool_jit_p(jaxpr, eqn, argnames)
+            logs_eqn = spool_jit_p(eqn)
         elif eqn.primitive == jax.extend.core.primitives.call_p:
-            logs_eqn = spool_call_p(jaxpr, eqn, argnames)
+            logs_eqn = spool_call_p(eqn)
         elif eqn.primitive == jax._src.ad_checkpoint.remat_p:
-            logs_eqn = spool_remat_p(jaxpr, eqn, argnames)
+            logs_eqn = spool_remat_p(eqn)
 
         if logs_eqn:
             logs_eqns.append(logs_eqn)
@@ -269,194 +357,3 @@ def spool_jaxpr(jaxpr: Jaxpr, argnames: Optional[Iterable[str]]) -> logdict:
         logs_jaxpr = logdict({})
 
     return logs_jaxpr
-
-
-def spool_lox_p(
-    jaxpr: Jaxpr, eqn: JaxprEqn, argnames: Optional[Iterable[str]]
-) -> logdict:
-    """
-    Spools the logs from a lox_p primitive. The logs are extracted from the equation's parameters.
-
-    Args:
-        jaxpr (Jaxpr): The jaxpr containing the lox_p operation.
-        eqn (JaxprEqn): The equation representing the lox_p operation.
-        argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
-    Returns:
-        tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
-    """
-    del jaxpr
-    logs_eqn = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
-    if not argnames and eqn.params["explicit"]:
-        logs_eqn = logdict({})
-    elif argnames:
-        logs_eqn = logs_eqn.filter(lambda k, _: k in argnames)
-    return logs_eqn
-
-
-def spool_scan_p(
-    jaxpr: Jaxpr, eqn: JaxprEqn, argnames: Optional[Iterable[str]]
-) -> logdict:
-    """
-    Spools the logs from a scan_p primitive. The logs of the jaxpr are reshaped to have a static length,
-    which is the length of the scan.
-
-    Args:
-        jaxpr (Jaxpr): The jaxpr containing the scan operation.
-        eqn (JaxprEqn): The equation representing the scan operation.
-        argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
-    Returns:
-        logdict: The logs and their shapes for the scan.
-    Raises:
-        ValueError: If the jaxpr contains any logging operations with non-static lengths.
-    """
-    logs_jaxpr = spool_jaxpr(eqn.params["jaxpr"].jaxpr, argnames)
-    logs_jaxpr_avals = jax.tree_util.tree_map(lambda l: l.aval, logs_jaxpr)
-
-    logs_scan_avals = jax.tree_util.tree_map(
-        lambda aval: ShapedArray((eqn.params["length"],) + aval.shape, aval.dtype),
-        logs_jaxpr_avals,
-    )
-    logs_scan = jax.tree.map(lambda aval: Var(aval=aval), logs_scan_avals)
-    eqn.outvars.extend(jax.tree.leaves(logs_scan))
-
-    def unstack(logs_scan):
-        """Unstacks the logs from the scan, to have a single leading dimension."""
-        return jax.tree.map(
-            lambda l: l.reshape((-1,) + l.shape[2:]),
-            logs_scan,
-        )
-
-    logs_eqn = apply(unstack, jaxpr, logs_scan)
-
-    return logs_eqn
-
-
-def spool_cond_p(
-    jaxpr: Jaxpr, eqn: JaxprEqn, argnames: Optional[Iterable[str]]
-) -> logdict:
-    """
-    Spools the branches of a cond_p primitive. All branches must have the same log structure and shapes.
-
-    Args:
-        jaxpr (Jaxpr): The jaxpr containing the cond operation.
-        eqn (JaxprEqn): The equation representing the switch operation.
-        argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
-    Returns:
-        logdict: The logs and their shapes for the branches.
-    Raises:
-        ValueError: If the branches do not have the same log structure or shapes.
-    """
-    del jaxpr
-    branches = eqn.params["branches"]
-    logs_branches = []
-
-    for branch in branches:
-        logs_branch = spool_jaxpr(branch.jaxpr, argnames)
-        logs_branches.append(logs_branch)
-
-    logs_eqn = jax.tree.map(
-        lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_branches[0]
-    )
-    eqn.outvars.extend(jax.tree.leaves(logs_eqn))
-
-    return logs_eqn
-
-
-def spool_while_p(
-    jaxpr: Jaxpr, eqn: JaxprEqn, argnames: Optional[Iterable[str]]
-) -> logdict:
-    """
-    Spools the inner jaxpr of a while_p primitive. If the jaxpr contains any logging operations,
-        it raises an error since while loops have non-static lengths.
-
-    Args:
-        jaxpr (Jaxpr): The jaxpr containing the while loop.
-        eqn (JaxprEqn): The equation representing the while loop.
-        argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
-    Returns:
-        logdict: An empty logdict, as spooling is not supported for while loops.
-    Raises:
-        ValueError: If the jaxpr contains any logging operations, since while loops have non-static lengths.
-    """
-    del jaxpr
-    logs_cond = spool_jaxpr(eqn.params["cond_jaxpr"].jaxpr, argnames)
-    logs_body = spool_jaxpr(eqn.params["body_jaxpr"].jaxpr, argnames)
-    if logs_cond or logs_body:
-        raise ValueError(
-            "Spooling for while loops is not supported due to non-static length."
-        )
-    return logdict({})
-
-
-def spool_jit_p(
-    jaxpr: Jaxpr, eqn: JaxprEqn, argnames: Optional[Iterable[str]]
-) -> logdict:
-    """
-    Spools the jaxpr of a pjit primitive. As spooling the function would trigger recompilation,
-    the wrapping pjit is removed if the jaxpr contains any lox_p primitives.
-
-    Args:
-        jaxpr (Jaxpr): The jaxpr containing the pjit operation.
-        eqn (JaxprEqn): The equation representing the pjit operation.
-        argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
-    Returns:
-        tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
-    """
-    del jaxpr
-    logs_jaxpr = spool_jaxpr(eqn.params["jaxpr"].jaxpr, argnames)
-    if logs_jaxpr:
-        logs_eqn = jax.tree.map(
-            lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_jaxpr
-        )
-        eqn.outvars.extend(jax.tree.leaves(logs_eqn))
-        eqn.primitive = jax.extend.core.primitives.call_p
-        eqn.params = {"call_jaxpr": eqn.params["jaxpr"].jaxpr}
-        return logs_eqn
-    else:
-        return logdict({})
-
-
-def spool_call_p(
-    jaxpr: Jaxpr, eqn: JaxprEqn, argnames: Optional[Iterable[str]]
-) -> logdict:
-    """
-    Spools the jaxpr of a call_p primitive. This is used to handle the case where a function is called
-    within a jaxpr, allowing us to track logs from the called function.
-
-    Args:
-        jaxpr (Jaxpr): The jaxpr containing the call operation.
-        eqn (JaxprEqn): The equation representing the call operation.
-        argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
-    Returns:
-        tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
-    """
-    del jaxpr
-    logs_call_jaxpr = spool_jaxpr(eqn.params["call_jaxpr"], argnames)
-    logs_eqn = jax.tree.map(
-        lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_call_jaxpr
-    )
-    eqn.outvars.extend(jax.tree_util.tree_leaves(logs_eqn))
-    return logs_eqn
-
-
-def spool_remat_p(
-    jaxpr: Jaxpr, eqn: JaxprEqn, argnames: Optional[Iterable[str]]
-) -> logdict:
-    """
-    Spools the jaxpr of a remat_p primitive. This is used to handle the case where a function is rematerialized
-    within a jaxpr, allowing us to track logs from the rematerialized function.
-
-    Args:
-        jaxpr (Jaxpr): The jaxpr containing the remat operation.
-        eqn (JaxprEqn): The equation representing the remat operation.
-        argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
-    Returns:
-        tuple[dict[str, Any], dict[str, Any]]: The logs and their shapes.
-    """
-    del jaxpr
-    logs_remat_jaxpr = spool_jaxpr(eqn.params["jaxpr"], argnames)
-    logs_eqn = jax.tree.map(
-        lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_remat_jaxpr
-    )
-    eqn.outvars.extend(jax.tree_util.tree_leaves(logs_eqn))
-    return logs_eqn
