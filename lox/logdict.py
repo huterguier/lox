@@ -33,8 +33,6 @@ class stepdict(dict[str, jax.Array]):
         """
         Adds two stepdicts together, concatenating their values.
         """
-        if not isinstance(other, stepdict):
-            raise TypeError("Can only add another stepdict")
         new_steps = {}
         for key in set(self.keys()).union(other.keys()):
             if key in self and key in other:
@@ -89,8 +87,6 @@ class stepdict(dict[str, jax.Array]):
             self.stepdict = stepdict
 
         def __getitem__(self, key: slice) -> "stepdict":
-            if not isinstance(key, slice):
-                raise TypeError("SliceProxy only supports slicing with slice objects.")
             return self.stepdict._slice(key.start, key.stop, key.step)
 
     @property
@@ -387,8 +383,6 @@ class logdict(dict[str, Any]):
             self.logdict = logdict
 
         def __getitem__(self, key: slice) -> "logdict":
-            if not isinstance(key, slice):
-                raise TypeError("SliceProxy only supports slicing with slice objects.")
             return self.logdict._slice(key.start, key.stop, key.step)
 
     @property
