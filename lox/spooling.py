@@ -1,14 +1,6 @@
 from functools import wraps
-from typing import (
-    Any,
-    Callable,
-    Hashable,
-    Iterable,
-    Literal,
-    Optional,
-    Sequence,
-    overload,
-)
+from typing import (Any, Callable, Hashable, Iterable, Literal, Optional,
+                    Sequence, overload)
 
 import jax
 import jax._src.ad_checkpoint
@@ -20,7 +12,7 @@ from jax.core import ShapedArray
 from jax.extend.core import ClosedJaxpr, Jaxpr, JaxprEqn, Var
 
 from lox.logdict import logdict
-from lox.nolog import nolog_jaxpr
+from lox.nolog import strip_jaxpr
 from lox.primitive import lox_p
 from lox.utils import flatten, is_hashable
 
@@ -187,7 +179,7 @@ def make_spooled_jaxpr(
             lambda v: ShapeDtypeStruct(v.aval.shape, v.aval.dtype), logs
         )
         if not keep_logs:
-            nolog_jaxpr(closed_jaxpr.jaxpr)
+            strip_jaxpr(closed_jaxpr.jaxpr)
         if return_shape:
             return closed_jaxpr, (out_shape, logs_shape)
         return closed_jaxpr
