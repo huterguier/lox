@@ -12,16 +12,13 @@ lox_p = core.Primitive("lox")
 lox_p.multiple_results = True
 
 
-def log(
-    data: dict[str, Any], explicit: bool = False, tags: Iterable[str] = (), **steps: int
-) -> logdict:
+def log(data: dict[str, Any], tags: Iterable[str] = (), **steps: int) -> logdict:
     """
     Fundamental logging primitive for Lox.
     This primitive creates a logdict for a single data point and associates it with the provided steps.
 
     Args:
         data: A dictionary containing the data to be logged.
-        explicit: Wether to the data is logged by default or only when explicitly specified.
         tags: An iterable of strings representing tags associated with the log.
         steps: Keyword arguments where keys are step names and values are step numbers.
 
@@ -41,40 +38,40 @@ def log(
     }
     logs = logdict(data_logdict, **steps_logdict)
     logs_flat, structure = jax.tree_util.tree_flatten(logs)
-    _ = lox_p.bind(*logs_flat, explicit=explicit, tags=tags, structure=structure)
+    _ = lox_p.bind(*logs_flat, tags=tuple(tags), structure=structure)
     return jax.tree_util.tree_unflatten(structure, logs_flat)
 
 
 @lox_p.def_impl
-def lox_impl(*logs_flat, explicit, tags, structure):
-    del structure, explicit, tags
+def lox_impl(*logs_flat, tags, structure):
+    del structure, tags
     return logs_flat
 
 
 @lox_p.def_effectful_abstract_eval
-def lox_abstract_eval(*logs_flat, explicit, tags, structure):
-    del structure, explicit, tags
+def lox_abstract_eval(*logs_flat, tags, structure):
+    del structure, tags
     return list(logs_flat), {DebugEffect()}
 
 
-def lox_lowering(*logs_flat, explicit, tags, structure):
-    del structure, explicit, tags
+def lox_lowering(*logs_flat, tags, structure):
+    del structure, tags
     return logs_flat
 
 
 mlir.register_lowering(lox_p, mlir.lower_fun(lox_lowering, multiple_results=True))
 
 
-def lox_batch(vector_arg_values, batch_axes, explicit, tags, structure):
-    outs = lox_p.bind(*vector_arg_values, explicit=explicit, tags=tags, structure=structure)
+def lox_batch(vector_arg_values, batch_axes, tags, structure):
+    outs = lox_p.bind(*vector_arg_values, tags=tags, structure=structure)
     return outs, batch_axes
 
 
 batching.primitive_batchers[lox_p] = lox_batch
 
 
-def lox_jvp(arg_values, arg_tangents, explicit, tags, structure):
-    lox_p.bind(*arg_values, explicit=explicit, tags=tags, structure=structure)
+def lox_jvp(arg_values, arg_tangents, tags, structure):
+    lox_p.bind(*arg_values, tags=tags, structure=structure)
     return arg_values, arg_tangents
 
 

@@ -126,7 +126,6 @@ def make_spooled_jaxpr(
     static_argnums: int | Iterable[int] = (),
     axis_env: Sequence[tuple[AxisName, int]] | None = None,
     return_shape: Literal[False] = ...,
-    abstracted_axes: Any | None = None,
     argnames: Iterable[str] | None = None,
     tags: Iterable[str] | None = None,
     keep_logs: bool = False,
@@ -139,7 +138,6 @@ def make_spooled_jaxpr(
     static_argnums: int | Iterable[int] = (),
     axis_env: Sequence[tuple[AxisName, int]] | None = None,
     return_shape: Literal[True] = ...,
-    abstracted_axes: Any | None = None,
     argnames: Iterable[str] | None = None,
     tags: Iterable[str] | None = None,
     keep_logs: bool = False,
@@ -151,7 +149,6 @@ def make_spooled_jaxpr(
     static_argnums: int | Iterable[int] = (),
     axis_env: Sequence[tuple[AxisName, int]] | None = None,
     return_shape: bool = False,
-    abstracted_axes: Any | None = None,
     argnames: Iterable[str] | None = None,
     tags: Iterable[str] | None = None,
     keep_logs: bool = False,
@@ -164,7 +161,6 @@ def make_spooled_jaxpr(
         static_argnums (int | Iterable[int]): The indices of static arguments.
         axis_env (Sequence[tuple[AxisName, int]] | None): The axis environment for the jaxpr.
         return_shape (bool): Whether to return the shape of the output.
-        abstracted_axes (Any | None): Abstracted axes for the jaxpr.
         argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
         tags (Optional[Iterable[str]]): An optional list of tags to filter the logs.
         keep_logs (bool): Whether to keep logs in the jaxpr.
@@ -178,7 +174,6 @@ def make_spooled_jaxpr(
             static_argnums=static_argnums,
             axis_env=axis_env,
             return_shape=True,
-            abstracted_axes=abstracted_axes,
         )(*args, **kwargs)
         logs = spool_jaxpr(closed_jaxpr.jaxpr, argnames=argnames, tags=tags)
         logs_shape = jax.tree_util.tree_map(
@@ -213,17 +208,16 @@ def apply(f: Callable, jaxpr: Jaxpr, *invars: Any) -> Any:
     closed_jaxpr_f, shape_f = jax.make_jaxpr(f, return_shape=True)(*invars_avals)
     structure_f = jax.tree.structure(shape_f)
     jaxpr_f = closed_jaxpr_f.jaxpr
-    jaxpr.eqns.append(
-        JaxprEqn(
-            primitive=jax.extend.core.primitives.call_p,
-            invars=jax.tree.leaves(invars),
-            outvars=jaxpr_f.outvars,
-            params={"call_jaxpr": jaxpr_f},
-            source_info=source_info_util.current(),
-            effects=(),
-            ctx=jaxpr.eqns[0].ctx,
-        )
+    eqn_f = JaxprEqn(
+        jax.tree.leaves(invars),
+        jaxpr_f.outvars,
+        jax.extend.core.primitives.call_p,
+        {"call_jaxpr": jaxpr_f},
+        (),
+        source_info_util.current(),
+        jaxpr.eqns[0].ctx,
     )
+    jaxpr.eqns.append(eqn_f)
     outvars = jax.tree.unflatten(structure_f, jaxpr_f.outvars)
     return outvars
 
@@ -243,10 +237,12 @@ def spool_jaxpr(
 
     def spool_lox_p(eqn: JaxprEqn) -> logdict:
         logs_eqn = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
-        if not argnames and eqn.params["explicit"]:
-            logs_eqn = logdict({})
-        elif argnames:
-            logs_eqn = logs_eqn.filter(lambda k, _: k in argnames)
+        if argnames:
+            if tags is None or not any(tag in tags for tag in eqn.params["tags"]):
+                logs_eqn = logs_eqn.filter(lambda k, _: k in argnames)
+        elif tags:
+            if not any(tag in tags for tag in eqn.params["tags"]):
+                logs_eqn = logdict({})
         return logs_eqn
 
     def spool_scan_p(eqn: JaxprEqn) -> logdict:

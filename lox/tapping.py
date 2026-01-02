@@ -18,6 +18,7 @@ def tap(
     fun: Callable,
     callback: Callable[[logdict], None] | None = None,
     argnames: str | Iterable[str] | None = None,
+    tags: Iterable[str] | None = None,
     prefix: str = "",
 ) -> Callable:
     """
@@ -58,6 +59,7 @@ def tap(
             return_shape=True,
             callback=callback,
             argnames=argnames,
+            tags=tags,
             prefix=prefix,
         )(*args_flat)
         dynamic_args_flat = tuple(arg for arg in args_flat if not is_hashable(arg))
@@ -76,9 +78,9 @@ def make_tapped_jaxpr(
     static_argnums: int | Iterable[int] = (),
     axis_env: Sequence[tuple[AxisName, int]] | None = None,
     return_shape: bool = False,
-    abstracted_axes: Any | None = None,
     callback: Callable[[logdict], None] | None = None,
     argnames: str | Iterable[str] | None = None,
+    tags: Iterable[str] | None = None,
     prefix: str = "",
 ) -> Callable[..., tuple[ClosedJaxpr, Any]]:
     """
@@ -89,7 +91,6 @@ def make_tapped_jaxpr(
         static_argnums (int | Iterable[int]): The indices of static arguments.
         axis_env (Sequence[tuple[AxisName, int]] | None): The axis environment for the jaxpr.
         return_shape (bool): Whether to return the shape of the output.
-        abstracted_axes (Any | None): Abstracted axes for the jaxpr.
         callback (Callable[[logdict], None] | None): A callback function to be called with the tapped values. If None, the default callback will be used to display the values.
         argnames (str | Iterable[str] | None): The names of the arguments to be tapped. If None, all arguments will be tapped.
         prefix (str): An optional prefix to add to the log keys.
@@ -105,11 +106,11 @@ def make_tapped_jaxpr(
             static_argnums=static_argnums,
             axis_env=axis_env,
             return_shape=True,
-            abstracted_axes=abstracted_axes,
         )(*args, **kwargs)
         _ = tap_jaxpr(
             closed_jaxpr.jaxpr,
             argnames=argnames,
+            tags=tags,
             callback=callback if callback is not None else print,
             prefix=prefix,
         )
@@ -122,6 +123,7 @@ def tap_jaxpr(
     jaxpr: Jaxpr,
     callback: Callable[[logdict], None],
     argnames: Iterable[str] | None = None,
+    tags: Iterable[str] | None = None,
     prefix: str = "",
 ):
     """
@@ -154,10 +156,12 @@ def tap_jaxpr(
         if eqn.primitive == lox_p:
             structure = eqn.params["structure"]
             logs = jax.tree.unflatten(structure, eqn.invars)
-            if not argnames and eqn.params["explicit"]:
-                logs = logdict({})
-            elif argnames:
-                logs = logs.filter(lambda k, _: k in argnames)
+            if argnames:
+                if tags is None or not any(tag in tags for tag in eqn.params["tags"]):
+                    logs = logs.filter(lambda k, _: k in argnames)
+            elif tags:
+                if not any(tag in tags for tag in eqn.params["tags"]):
+                    logs = logdict({})
             logs_avals = jax.tree.map(lambda l: l.aval, logs)
             logs_avals_flat, structure_avals = jax.tree.flatten(logs_avals)
             if logs_avals:

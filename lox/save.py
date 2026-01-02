@@ -7,9 +7,9 @@ import jax
 import jax.experimental
 import jax.numpy as jnp
 
-from lox.string import StringArray
-from lox.typing import Key
 from lox.utils import get_path
+from lox.utils.string_array import StringArray
+from lox.utils.typing import Key
 
 
 def save_callback(
@@ -66,7 +66,7 @@ def save(
     Save data to a specified path using a callback function. Each entry in the data dictionary is saved as a separate file with the key as the filename.
     Args:
       data (dict[str, Any]): The data to be saved.
-      path (lox.String): The path where the data will be saved.
+      path (StringArray): The path where the data will be saved.
       mode (str): The mode in which to open the file ('a' for append, 'w' for write, 'x' for exclusive creation).
       key (jax.Array, optional): An optional key to differentiate data when saving.
     """
@@ -114,7 +114,7 @@ def load(
     """
     Load data from a specified path. Each file in the directory is loaded into a dictionary with the filename (without extension) as the key.
     Args:
-      path (lox.String): The path from which the data will be loaded.
+      path (StringArray): The path from which the data will be loaded.
       result_shape_dtypes (Any, optional): The expected shape and dtype of the loaded data.
       argnames (Iterable[str], optional): Specific argument names to load. If None, all files in the directory are loaded.
       key (jax.Array, optional): An optional key to differentiate data when loading.

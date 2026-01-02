@@ -3,11 +3,11 @@ from functools import partial
 
 import jax
 import jax.experimental
-import wandb
 
+import wandb
 from lox import logdict
-from lox.string import StringArray
-from lox.typing import Key
+from lox.utils.string_array import StringArray
+from lox.utils.typing import Key
 
 runs_wandb = {}
 
