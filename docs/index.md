@@ -19,6 +19,7 @@ While it's obviously possible to implement this functionality yourself, `lox` pr
 ## Quick Start
 
 ### Basic API
+
 At its core `lox` is built around 2 central function transformations calles `tap` and `spool`.
 They work by traversing the functions [`jaxpr`](https://docs.jax.dev/en/latest/jaxpr.html), JAX's internal intermediate function representation, and dynamically alters it to match the desired behavior.
 In order to use them with you function, all you need to do is specify what you want to log using `lox.log`.
@@ -158,5 +159,6 @@ examples
 :maxdepth: 2
 :caption: API
 
+design_decisions
 api
 ```
