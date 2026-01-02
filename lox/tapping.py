@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Any, Callable, Hashable, Iterable, Sequence
+from typing import Any, Callable, Hashable, Iterable
 
 import jax
 import jax._src.ad_checkpoint
@@ -56,7 +56,6 @@ def tap(
         closed_jaxpr, out_shape = make_tapped_jaxpr(
             flatten(fun, structure),
             static_argnums=static_argnums,
-            return_shape=True,
             callback=callback,
             argnames=argnames,
             tags=tags,
@@ -76,8 +75,6 @@ def tap(
 def make_tapped_jaxpr(
     fun: Callable,
     static_argnums: int | Iterable[int] = (),
-    axis_env: Sequence[tuple[AxisName, int]] | None = None,
-    return_shape: bool = False,
     callback: Callable[[logdict], None] | None = None,
     argnames: str | Iterable[str] | None = None,
     tags: Iterable[str] | None = None,
@@ -89,8 +86,6 @@ def make_tapped_jaxpr(
     Args:
         fun (Callable): The function to create a jaxpr for.
         static_argnums (int | Iterable[int]): The indices of static arguments.
-        axis_env (Sequence[tuple[AxisName, int]] | None): The axis environment for the jaxpr.
-        return_shape (bool): Whether to return the shape of the output.
         callback (Callable[[logdict], None] | None): A callback function to be called with the tapped values. If None, the default callback will be used to display the values.
         argnames (str | Iterable[str] | None): The names of the arguments to be tapped. If None, all arguments will be tapped.
         prefix (str): An optional prefix to add to the log keys.
@@ -104,10 +99,9 @@ def make_tapped_jaxpr(
         closed_jaxpr, out_shape = jax.make_jaxpr(
             fun,
             static_argnums=static_argnums,
-            axis_env=axis_env,
             return_shape=True,
         )(*args, **kwargs)
-        _ = tap_jaxpr(
+        tap_jaxpr(
             closed_jaxpr.jaxpr,
             argnames=argnames,
             tags=tags,

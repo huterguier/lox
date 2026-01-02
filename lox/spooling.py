@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Any, Callable, Hashable, Iterable, Literal, Sequence, overload
+from typing import Any, Callable, Hashable, Iterable
 
 import jax
 import jax._src.ad_checkpoint
@@ -96,7 +96,6 @@ def spool(
         closed_jaxpr, out_spooled_shape = make_spooled_jaxpr(
             flatten(fun, structure),
             static_argnums=static_argnums,
-            return_shape=True,
             argnames=argnames,
             tags=tags,
             keep_logs=keep_logs,
@@ -120,47 +119,19 @@ def spool(
     return wrapped
 
 
-@overload
 def make_spooled_jaxpr(
     fun: Callable,
     static_argnums: int | Iterable[int] = (),
-    axis_env: Sequence[tuple[AxisName, int]] | None = None,
-    return_shape: Literal[False] = ...,
     argnames: Iterable[str] | None = None,
     tags: Iterable[str] | None = None,
     keep_logs: bool = False,
-) -> Callable[..., ClosedJaxpr]: ...
-
-
-@overload
-def make_spooled_jaxpr(
-    fun: Callable,
-    static_argnums: int | Iterable[int] = (),
-    axis_env: Sequence[tuple[AxisName, int]] | None = None,
-    return_shape: Literal[True] = ...,
-    argnames: Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
-    keep_logs: bool = False,
-) -> Callable[..., tuple[ClosedJaxpr, Any]]: ...
-
-
-def make_spooled_jaxpr(
-    fun: Callable,
-    static_argnums: int | Iterable[int] = (),
-    axis_env: Sequence[tuple[AxisName, int]] | None = None,
-    return_shape: bool = False,
-    argnames: Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
-    keep_logs: bool = False,
-) -> Callable[..., ClosedJaxpr] | Callable[..., tuple[ClosedJaxpr, Any]]:
+) -> Callable[..., tuple[ClosedJaxpr, Any]]:
     """
     Creates a spooled jaxpr for the given function, extracting logs and their shapes.
 
     Args:
         fun (Callable): The function to create a jaxpr for.
         static_argnums (int | Iterable[int]): The indices of static arguments.
-        axis_env (Sequence[tuple[AxisName, int]] | None): The axis environment for the jaxpr.
-        return_shape (bool): Whether to return the shape of the output.
         argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
         tags (Optional[Iterable[str]]): An optional list of tags to filter the logs.
         keep_logs (bool): Whether to keep logs in the jaxpr.
@@ -172,7 +143,6 @@ def make_spooled_jaxpr(
         closed_jaxpr, out_shape = jax.make_jaxpr(
             fun,
             static_argnums=static_argnums,
-            axis_env=axis_env,
             return_shape=True,
         )(*args, **kwargs)
         logs = spool_jaxpr(closed_jaxpr.jaxpr, argnames=argnames, tags=tags)
@@ -181,9 +151,7 @@ def make_spooled_jaxpr(
         )
         if not keep_logs:
             strip_jaxpr(closed_jaxpr.jaxpr)
-        if return_shape:
-            return closed_jaxpr, (out_shape, logs_shape)
-        return closed_jaxpr
+        return closed_jaxpr, (out_shape, logs_shape)
 
     make_jaxpr_f.__module__ = "jax"
     if hasattr(fun, "__qualname__"):
@@ -281,8 +249,8 @@ def spool_jaxpr(
         logs_cond = spool_jaxpr(eqn.params["cond_jaxpr"].jaxpr, argnames, tags)
         logs_body = spool_jaxpr(eqn.params["body_jaxpr"].jaxpr, argnames, tags)
         if logs_cond or logs_body:
-            raise ValueError(
-                "Spooling for while loops is not supported due to non-static length."
+            print(
+                "Warning: Spooling for while loops is not supported due to non-static length."
             )
         return logdict({})
 
