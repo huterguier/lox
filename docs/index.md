@@ -152,6 +152,7 @@ quick_start
 why_lox
 the_sharp_bits
 examples
+contributing
 ```
 
 ```{toctree}
