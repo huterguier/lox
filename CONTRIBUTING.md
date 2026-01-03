@@ -1,4 +1,4 @@
-# Contributing to lox
+# Contributing to `lox`
 
 Thank you for your interest in contributing to `lox`! We welcome contributions from everyone, whether you're fixing a bug, improving documentation, or suggesting new features.
 
