@@ -150,7 +150,7 @@ def make_spooled_jaxpr(
             lambda v: ShapeDtypeStruct(v.aval.shape, v.aval.dtype), logs
         )
         if not keep_logs:
-            strip_jaxpr(closed_jaxpr.jaxpr)
+            strip_jaxpr(closed_jaxpr.jaxpr, argnames=argnames, tags=tags)
         return closed_jaxpr, (out_shape, logs_shape)
 
     make_jaxpr_f.__module__ = "jax"
