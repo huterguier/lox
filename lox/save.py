@@ -64,6 +64,7 @@ def save(
 ):
     """
     Save data to a specified path using a callback function. Each entry in the data dictionary is saved as a separate file with the key as the filename.
+
     Args:
       data (dict[str, Any]): The data to be saved.
       path (StringArray): The path where the data will be saved.
@@ -113,6 +114,7 @@ def load(
 ) -> dict[str, Any]:
     """
     Load data from a specified path. Each file in the directory is loaded into a dictionary with the filename (without extension) as the key.
+
     Args:
       path (StringArray): The path from which the data will be loaded.
       result_shape_dtypes (Any, optional): The expected shape and dtype of the loaded data.

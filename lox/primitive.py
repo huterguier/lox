@@ -28,6 +28,23 @@ def log(data: dict[str, Any], tags: Iterable[str] = (), **steps: int) -> logdict
     Examples:
         By default lox.log complies with the pure functional programming paradigm of JAX,
         meaning it does not have side effects and does not mutate the state.
+        Let's look at this simple example of a function that adds 1.0 to its input.
+
+        >>> def f(x):
+        >>>     return x + 1.0
+        >>> f(1.0)
+        2.0
+
+        If we insert a logging statement inside the function, the function's behavior remains unchanged.
+
+        >>> def f_log(x):
+        >>>     lox.log({"x": x})
+        >>>     return x + 1.0
+        >>> f_log(1.0)
+        2.0
+
+        In order to actually retrieve or use the logged data, we need to apply a function transformation such as :attr:`spool` or :attr:`tap`.
+
     """
     data_logdict = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 0), data)
     steps_logdict = {

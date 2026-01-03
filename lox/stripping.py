@@ -20,11 +20,44 @@ def strip(
 ) -> Callable:
     """
     Strips all logging operations from the given function by manipulating its Jaxpr.
+    This is useful when you remove logging statements from parts of you code or want to quickly disable logging for performance reasons.
 
     Args:
       fun: The function from which to strip logging operations.
     Returns:
       A new function with logging operations removed.
+
+    Examples:
+        By default lox.strip removes all logging operations from a function.
+
+        >>> def f(x):
+        >>>     lox.log({"x": x})
+        >>>     return x + 1.0
+        >>> y, logs = lox.spool(lox.strip(f))(1.0)
+        >>> print(logs)
+        {}
+
+        It is possible to specify which logged arguments to strip by providing their names. In this example we only strip the logged argument "x", while "y" is kept.
+
+        >>> def f(x):
+        >>>     y = x + 1.0
+        >>>     lox.log({"x": x, "y": y})
+        >>>     return x + 1.0
+        >>> y, logs = lox.spool(lox.strip(f, argnames=["x"]))(1.0)
+        >>> print(logs)
+        {"y": 2.0}
+
+        It is also possible to strip logged arguments based on their tags.
+        All logged arguments with any of the specified tags will be stripped from the function.
+
+        >>> def f(x):
+        >>>     y = x + 1.0
+        >>>     lox.log({"x": x}, tags=["input"])
+        >>>     lox.log({"y": y}, tags=["output"])
+        >>>     return x + 1.0
+        >>> y, logs = lox.spool(lox.strip(f, tags=["input"]))(1.0)
+        >>> print(logs)
+        {"y": 2.0}
     """
 
     @functools.wraps(fun)
