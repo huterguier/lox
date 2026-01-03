@@ -44,7 +44,7 @@ isort .
 3.  **Submit PR:** Open a PR against the `main` branch.
 4.  **Review:** Participate in the review process and address any feedback.
 
-## Roadmap & TODOs
+## Roadmap
 
 Here are some areas where we're looking for help:
 
