@@ -3,8 +3,8 @@ from functools import partial
 
 import jax
 import jax.experimental
-
 import wandb
+
 from lox import logdict
 from lox.utils.string_array import StringArray
 from lox.utils.typing import Key
@@ -43,6 +43,17 @@ def log(run: WandbRun, logs: logdict):
         logs (logdict): A logdict containing the data to be logged.
     """
 
+    def flatten(data: dict):
+        flat_data = {}
+        for k, v in data.items():
+            if isinstance(v, dict):
+                nested_flat_data = flatten(v)
+                for nk, nv in nested_flat_data.items():
+                    flat_data[f"{k}/{nk}"] = nv
+            else:
+                flat_data[k] = v
+        return flat_data
+
     def callback(id, logs):
         id = str(id)
         run = runs_wandb[id]
@@ -61,13 +72,15 @@ def log(run: WandbRun, logs: logdict):
                     else:
                         ordered_data[step] |= {k: v}
             for step in sorted(ordered_data.keys()):
-                run.log(ordered_data[step], step=step)
+                data = flatten(ordered_data[step])
+                run.log(data, step=step)
         else:
             leaves = jax.tree.leaves(logs)
             if leaves:
                 assert all([len(leaf) == len(leaves[0]) for leaf in leaves])
                 for i in range(len(leaves[0])):
-                    run.log(jax.tree.map(lambda l: l[i], logs))
+                    data = jax.tree.map(lambda l: flatten(l[i]), logs)
+                    run.log(data)
 
     jax.debug.callback(callback, ordered=True, id=run.id, logs=logs)
     return
