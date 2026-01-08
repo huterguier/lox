@@ -138,7 +138,6 @@ def load(
         logs = jax.experimental.io_callback(
             callback,
             result_shape_dtypes,
-            path=path,
             key=key,
         )
     return logs
