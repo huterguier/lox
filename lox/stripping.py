@@ -5,7 +5,7 @@ import jax
 import jax._src.ad_checkpoint
 import jax.core
 import jax.extend.core
-from jax.extend.core import Jaxpr
+from jax.extend.core import ClosedJaxpr, Jaxpr
 
 from lox.logdict import logdict
 from lox.primitive import lox_p
@@ -65,7 +65,8 @@ def strip(
         closed_jaxpr, out_shape = jax.make_jaxpr(fun, return_shape=True)(
             *args, **kwargs
         )
-        strip_jaxpr(closed_jaxpr.jaxpr, argnames=argnames, tags=tags)
+        new_jaxpr = strip_jaxpr(closed_jaxpr.jaxpr, argnames=argnames, tags=tags)
+        closed_jaxpr = ClosedJaxpr(new_jaxpr, closed_jaxpr.consts)
         out_flat = jax.core.eval_jaxpr(closed_jaxpr.jaxpr, closed_jaxpr.literals, *args)
         out = jax.tree_util.tree_unflatten(
             jax.tree_util.tree_structure(out_shape), out_flat
@@ -79,8 +80,10 @@ def strip_jaxpr(
     jaxpr: Jaxpr,
     argnames: Iterable[str] | None = None,
     tags: Iterable[str] | None = None,
-):
-    """Remove all logging operations from a Jaxpr."""
+) -> Jaxpr:
+    """Remove all logging operations from a Jaxpr.
+    Returns a new Jaxpr (does not mutate the input)."""
+    new_eqns = []
     for eqn in jaxpr.eqns:
         if eqn.primitive == lox_p:
             logs_in = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
@@ -91,19 +94,41 @@ def strip_jaxpr(
             elif argnames:
                 logs_in = logs_in.filter(lambda k, _: k not in argnames)
                 logs_out = logs_out.filter(lambda k, _: k not in argnames)
-            eqn.invars, eqn.params["structure"] = jax.tree.flatten(logs_in)
-            eqn.outvars = jax.tree.leaves(logs_out)
+            new_invars, new_structure = jax.tree.flatten(logs_in)
+            new_eqns.append(eqn.replace(
+                invars=new_invars,
+                outvars=jax.tree.leaves(logs_out),
+                params={**eqn.params, "structure": new_structure},
+            ))
         elif eqn.primitive == jax.extend.core.primitives.scan_p:
-            strip_jaxpr(eqn.params["jaxpr"])
+            c = eqn.params["jaxpr"]
+            new_eqns.append(eqn.replace(params={**eqn.params,
+                "jaxpr": ClosedJaxpr(strip_jaxpr(c.jaxpr, argnames, tags), c.consts),
+            }))
         elif eqn.primitive == jax.extend.core.primitives.cond_p:
-            for branch in eqn.params["branches"]:
-                strip_jaxpr(branch.jaxpr)
+            new_eqns.append(eqn.replace(params={**eqn.params, "branches": tuple(
+                ClosedJaxpr(strip_jaxpr(b.jaxpr, argnames, tags), b.consts)
+                for b in eqn.params["branches"]
+            )}))
         elif eqn.primitive == jax.extend.core.primitives.while_p:
-            strip_jaxpr(eqn.params["body_jaxpr"])
-            strip_jaxpr(eqn.params["cond_jaxpr"])
+            c, b = eqn.params["cond_jaxpr"], eqn.params["body_jaxpr"]
+            new_eqns.append(eqn.replace(params={**eqn.params,
+                "cond_jaxpr": ClosedJaxpr(strip_jaxpr(c.jaxpr, argnames, tags), c.consts),
+                "body_jaxpr": ClosedJaxpr(strip_jaxpr(b.jaxpr, argnames, tags), b.consts),
+            }))
         elif eqn.primitive == jax.extend.core.primitives.jit_p:
-            strip_jaxpr(eqn.params["jaxpr"])
+            c = eqn.params["jaxpr"]
+            new_eqns.append(eqn.replace(params={**eqn.params,
+                "jaxpr": ClosedJaxpr(strip_jaxpr(c.jaxpr, argnames, tags), c.consts),
+            }))
         elif eqn.primitive == jax.extend.core.primitives.call_p:
-            strip_jaxpr(eqn.params["call_jaxpr"])
+            new_eqns.append(eqn.replace(params={**eqn.params,
+                "call_jaxpr": strip_jaxpr(eqn.params["call_jaxpr"], argnames, tags),
+            }))
         elif eqn.primitive == jax._src.ad_checkpoint.remat_p:
-            strip_jaxpr(eqn.params["jaxpr"])
+            new_eqns.append(eqn.replace(params={**eqn.params,
+                "jaxpr": strip_jaxpr(eqn.params["jaxpr"], argnames, tags),
+            }))
+        else:
+            new_eqns.append(eqn)
+    return jaxpr.replace(eqns=new_eqns)

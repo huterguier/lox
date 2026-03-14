@@ -101,14 +101,14 @@ def make_tapped_jaxpr(
             static_argnums=static_argnums,
             return_shape=True,
         )(*args, **kwargs)
-        tap_jaxpr(
+        new_jaxpr, _ = tap_jaxpr(
             closed_jaxpr.jaxpr,
             argnames=argnames,
             tags=tags,
             callback=callback if callback is not None else print,
             prefix=prefix,
         )
-        return closed_jaxpr, out_shape
+        return ClosedJaxpr(new_jaxpr, closed_jaxpr.consts), out_shape
 
     return wrapped
 
@@ -119,17 +119,21 @@ def tap_jaxpr(
     argnames: Iterable[str] | None = None,
     tags: Iterable[str] | None = None,
     prefix: str = "",
-):
+) -> tuple[Jaxpr, bool]:
     """
-    Taps into a JAX Jaxpr and prints the values of specified arguments. Recurisvely traverses the Jaxpr to find and tap into `lox_p` primitives.
+    Taps into a JAX Jaxpr and inserts callback equations for logged values.
+    Returns a new Jaxpr (does not mutate the input) and whether it was modified.
+    The modified flag is needed so that jit_p is only replaced with call_p when
+    the inner jaxpr actually contains logging.
 
     Args:
         jaxpr (Jaxpr): The Jaxpr to be tapped.
-        callback (Callable[[logdict], None]): A callback function to be called with the tapped values. It should accept a single argument, which is a `logdict` containing the tapped values.
-        argnames (Iterable[str] | None): An iterable of argument names to be tapped. If None, all arguments will be tapped.
+        callback (Callable[[logdict], None]): A callback function to be called with the tapped values.
+        argnames (Iterable[str] | None): An iterable of argument names to be tapped.
+        tags (Iterable[str] | None): An optional list of tags to filter the logs.
         prefix (str): An optional prefix to add to the log keys.
     Returns:
-      bool: True if the Jaxpr was modified, False otherwise.
+        tuple[Jaxpr, bool]: The new jaxpr and whether it was modified.
     """
 
     def wrapped_callback(structure, *logs_flat):
@@ -141,11 +145,10 @@ def tap_jaxpr(
 
         jax.debug.callback(_callback, *logs_flat)
 
-    i = 0
+    new_eqns = []
     modified = False
 
-    while i < len(jaxpr.eqns):
-        eqn = jaxpr.eqns[i]
+    for eqn in jaxpr.eqns:
 
         if eqn.primitive == lox_p:
             structure = eqn.params["structure"]
@@ -162,39 +165,68 @@ def tap_jaxpr(
                 print_jaxpr = jax.make_jaxpr(
                     wrapped_callback,
                     static_argnums=(0),
-                )(
-                    structure_avals,
-                    *logs_avals_flat,
-                )
-                jaxpr.eqns.insert(i, print_jaxpr.jaxpr.eqns[0])
-                jaxpr.eqns[i].invars = jax.tree.leaves(logs)
-                i += 1
+                )(structure_avals, *logs_avals_flat)
+                new_eqns.append(print_jaxpr.jaxpr.eqns[0].replace(
+                    invars=jax.tree.leaves(logs),
+                ))
                 modified = True
-
-        elif eqn.primitive == jax.extend.core.primitives.scan_p:
-            modified |= tap_jaxpr(eqn.params["jaxpr"].jaxpr, callback, argnames)
-
-        elif eqn.primitive == jax.extend.core.primitives.cond_p:
-            branches = eqn.params["branches"]
-            for branch in branches:
-                modified |= tap_jaxpr(branch.jaxpr, callback, argnames)
-
-        elif eqn.primitive == jax.extend.core.primitives.while_p:
-            modified |= tap_jaxpr(eqn.params["cond_jaxpr"].jaxpr, callback, argnames)
-            modified |= tap_jaxpr(eqn.params["body_jaxpr"].jaxpr, callback, argnames)
+            new_eqns.append(eqn)
 
         elif eqn.primitive == jax.extend.core.primitives.jit_p:
-            modified_call_jaxpr = tap_jaxpr(eqn.params["jaxpr"], callback, argnames)
-            if modified_call_jaxpr:
-                eqn.primitive = jax.extend.core.primitives.call_p
-                eqn.params = {"call_jaxpr": eqn.params["jaxpr"].jaxpr}
+            c = eqn.params["jaxpr"]
+            new_inner, m = tap_jaxpr(c.jaxpr, callback, argnames)
+            if m:
+                new_eqns.append(eqn.replace(
+                    primitive=jax.extend.core.primitives.call_p,
+                    params={"call_jaxpr": new_inner},
+                ))
                 modified = True
+            else:
+                new_eqns.append(eqn)
+
+        elif eqn.primitive == jax.extend.core.primitives.scan_p:
+            c = eqn.params["jaxpr"]
+            new_inner, m = tap_jaxpr(c.jaxpr, callback, argnames)
+            modified |= m
+            new_eqns.append(eqn.replace(params={**eqn.params,
+                "jaxpr": ClosedJaxpr(new_inner, c.consts),
+            }))
+
+        elif eqn.primitive == jax.extend.core.primitives.cond_p:
+            new_branches = []
+            for b in eqn.params["branches"]:
+                new_b, m = tap_jaxpr(b.jaxpr, callback, argnames)
+                modified |= m
+                new_branches.append(ClosedJaxpr(new_b, b.consts))
+            new_eqns.append(eqn.replace(params={**eqn.params,
+                "branches": tuple(new_branches),
+            }))
+
+        elif eqn.primitive == jax.extend.core.primitives.while_p:
+            c, b = eqn.params["cond_jaxpr"], eqn.params["body_jaxpr"]
+            new_c, mc = tap_jaxpr(c.jaxpr, callback, argnames)
+            new_b, mb = tap_jaxpr(b.jaxpr, callback, argnames)
+            modified |= mc | mb
+            new_eqns.append(eqn.replace(params={**eqn.params,
+                "cond_jaxpr": ClosedJaxpr(new_c, c.consts),
+                "body_jaxpr": ClosedJaxpr(new_b, b.consts),
+            }))
 
         elif eqn.primitive == jax.extend.core.primitives.call_p:
-            modified |= tap_jaxpr(eqn.params["call_jaxpr"], callback, argnames)
+            new_call, m = tap_jaxpr(eqn.params["call_jaxpr"], callback, argnames)
+            modified |= m
+            new_eqns.append(eqn.replace(params={**eqn.params,
+                "call_jaxpr": new_call,
+            }))
 
         elif eqn.primitive == jax._src.ad_checkpoint.remat_p:
-            modified |= tap_jaxpr(eqn.params["jaxpr"], callback, argnames)
+            new_remat, m = tap_jaxpr(eqn.params["jaxpr"], callback, argnames)
+            modified |= m
+            new_eqns.append(eqn.replace(params={**eqn.params,
+                "jaxpr": new_remat,
+            }))
 
-        i += 1
-    return modified
+        else:
+            new_eqns.append(eqn)
+
+    return jaxpr.replace(eqns=new_eqns), modified
