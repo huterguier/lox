@@ -8,7 +8,7 @@ import jax.extend
 from jax import ShapeDtypeStruct
 from jax._src import source_info_util
 from jax.core import ShapedArray
-from jax.extend.core import ClosedJaxpr, Jaxpr, JaxprEqn, Var
+from jax.extend.core import ClosedJaxpr, Jaxpr, JaxprEqn, Literal, Var
 
 from lox.logdict import logdict
 from lox.primitive import lox_p
@@ -283,10 +283,16 @@ def spool_jaxpr(
             logs_eqn = jax.tree.map(
                 lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_jaxpr
             )
+            const_literals = [Literal(c, jax.core.get_aval(c)) for c in inner_closed.consts]
+            call_jaxpr = new_inner_jaxpr.replace(
+                constvars=[],
+                invars=[*new_inner_jaxpr.constvars, *new_inner_jaxpr.invars],
+            )
             new_eqn = eqn.replace(
                 primitive=jax.extend.core.primitives.call_p,
+                invars=[*const_literals, *eqn.invars],
                 outvars=[*eqn.outvars, *jax.tree.leaves(logs_eqn)],
-                params={"call_jaxpr": new_inner_jaxpr},
+                params={"call_jaxpr": call_jaxpr},
             )
             return new_eqn, logs_eqn, []
         else:
