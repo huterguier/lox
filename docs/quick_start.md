@@ -1,177 +1,105 @@
 # Quick Start
 
-Logging in JAX can be incredibly tedious and cumbersome.
-JAX is purposefully designed to be fully functional,
-  and as a consequence one is left with 2 main options for logging in Jax.
+Welcome to the `lox` quick start guide! This page will walk you through the basic concepts and API of `lox`, helping you get up and running with logging in JAX in no time. We'll cover the core transformations, how to handle logs with `logdict`, and how to use built-in loggers.
 
-<style>
-    ol > li::marker {
-      font-weight: bold;
-    }
-</style>
-<ol>
-  <li> 
-    Using <a href="https://docs.jax.dev/en/latest/external-callbacks.html">callbacks</a> to log data. 
-    While this is the easiest most flexible way to log data, callbacks come with a cost.
-    Executing callbacks creates a non-negligable overhead, which can, especially when done frequently, 
-      slow down execution tremendously.
-    Moreover, these callbacks need to be inserted manually, which can clutter the code and make it less readable.
-  </li>
-  <li> 
-    The second option is to treat the logs as a part of the computation graph. 
-    While this is the most efficient way to log data, it can be quite tedious to implement, as it
-      requires you to manually add the logs as part of the function output. 
-    Additionally, this usually creates a bloated function signature, 
-      which is not ideal for readability and maintainability.
-  </li>
-</ol>
+## Basic API
 
-
-## What is `lox`?
-
-`lox` is a lightweight logging library for JAX that aims to dramatically simplify these two approaches.
-It takes care of all the boilerplate code that is usually required.
-With `lox`, you can easily log data in a JAX function without cluttering your code with print statements or callbacks.
-`lox` provides two fundamental function transformations, `lox.tap` and `lox.spool`, that
-  allow you to either stream logs in real time using a callback or collect all logs and return them as part of the function output.
-Lox also provides a variety of loggers that can be used to write the logs to different backends.
-
-## How does it work?
-
-`lox` is not a logging library in the traditional sense.
-By default the core function `lox.log` is a no-op, and it is not meant to be used for logging on its own.
-The only thing it does is to insert a JAX [primitive](https://docs.jax.dev/en/latest/jax-primitives.html),
-  that specifies that the values that you want to log in a dictionary format.
-Lox then applies a function transformation that, based on these primitives, modifies the
-    function to either insert a callback or to collect the logs and return them as part of the function output.
-
-
-## Example
-
-In the following example, we will illustrate how to use Lox to log data in a JAX function.
-We will first define a simple pure JAX function,
-  then we will decorate it with `lox.log` statements to specify which values we want to log,
-  and finally we will use Lox's function transformations to access the logs.
-To illustrate how Lox works, 
-  we will define a simple JAX function that performs a few optimization steps using gradient descent.
-The function takes in a sequence of data points and approximates their mean by minimizing the mean squared error.
+At its core `lox` is built around 2 central function transformations calles `tap` and `spool`.
+They work by traversing the functions [`jaxpr`](https://docs.jax.dev/en/latest/jaxpr.html), JAX's internal intermediate function representation, and dynamically alters it to match the desired behavior.
+In order to use them with you function, all you need to do is specify what you want to log using `lox.log`.
 
 ```python
-import jax
-import lox
+>>> import jax
+>>> import jax.numpy as jnp
+>>> import lox
 
-def f(xs):
-    def step(mean, x):
-        def loss(mean):
-            diff = mean - x
-            loss = (diff) ** 2
-            return loss
-        gradient = jax.grad(loss)(mean)
-        params = jax.tree_util.tree_map(lambda p, g: p - 1e-2 * g, mean, gradient)
-        return params, None
-    mean = 0.0
-    mean, _ = jax.lax.scan(step, mean, xs)
-    return mean
+>>> def f(xs):
+...     lox.log({"xs": xs})
+...     def step(carry, x):
+...         carry += x
+...         lox.log({"carry": carry})
+...         return carry, x
+...     y, _ = jax.lax.scan(step, 0, xs)
+...     return y
+
+>>> xs = jnp.arange(3)
 ```
-
-
-### 1. Decorating the function with `lox.log`
-
-In order to use Lox, we need to decorate the function with `lox.log` statements. 
-  These specify which values we want to log during the function execution.
-`lox.log` takes a single positional argument, which is the dictionary of values to log.
-All additional keyword arguments are treated as timesteps and will be logged as well.
-For the sake of simplicity, we wont use any timesteps in this example,
-  but you can refer to the [API documentation](api.md) for more details on how to use timesteps.
-In this example, 
-  we are interested in logging the signed difference between the current mean and the data point.
-
-```{code-block} python
-:emphasize-lines: 6
-def f(xs):
-    def step(mean, x):
-        def loss(mean):
-            diff = mean - x
-            loss = (diff) ** 2
-            lox.log({"diff": diff})
-            return loss
-        gradient = jax.grad(loss)(mean)
-        params = jax.tree_util.tree_map(lambda p, g: p - 1e-2 * g, mean, gradient)
-        return params, None
-    mean = 0.0
-    mean, _ = jax.lax.scan(step, mean, xs)
-    return mean
-```
-
-
-### 2. Collecting logs using `lox.spool`
-
-Now that we have decorated the function with `lox.log`, 
-  we can use function transformations to access the data.
-`lox.spool` is a function transformation "spools up" all logs during execution and returns them alongside the function's output. 
-This is especially useful when frequent callbacks would be too expensive. 
-The collected logs can then be handled after the function execution.
-
-```python
->>> mean = 10.0
->>> xs = jax.random.normal(jax.random.key(0), (3,)) + mean
->>> y, logs = lox.spool(f)(xs)
->>> print("Collected Logs:", logs)
-Collected Logs: {'diff': Array([-11.6226425, -11.792812, -9.098096, -9.2711115, -9.340398], dtype=float32)}
-```
-
-In this simple example collecting the logs manually would not be too difficult.
-However, in more complex scenarios with nested functions and multiple logging points,
-  manually collecting logs can become quite tedious and error-prone.
-`lox.spool` takes care of all the boilerplate code for you,
-
-### 3. Accessing the logs using `lox.tap`
-
-The second transformation `lox.tap` let's you "tap into" function execution by attaching a callback that receives logs as they're generated. 
+The first transformation, `lox.tap`, lets you "tap into" function execution by attaching a callback that receives logs as they're generated. 
 It streams logs in real time, making it great for debugging or live monitoring.
-The cool thing bout it is that you can define the callback function once, 
-  and `lox` automatically inserts it at every logging point in the function.
+In the following example we use a simple callback that writes all logs to the console.
 
 ```python
 >>> def callback(logs):
-...     print("Logging:", logs, flush=True)
+...     print("Logging:", logs)
 >>> y = lox.tap(f, callback=callback)(xs)
-
-Logging: {'diff': Array([-11.6226425], dtype=float32)}
-Logging: {'diff': Array([-11.792812], dtype=float32)}
-Logging: {'diff': Array([-9.098096], dtype=float32)}
-Logging: {'diff': Array([-9.2711115], dtype=float32)}
-Logging: {'diff': Array([-9.340398], dtype=float32)}
+Logging: {'xs': [0, 1, 2]}
+Logging: {'carry': 0}
+Logging: {'carry': 1}
+Logging: {'carry': 3}
 ```
 
-Another great thing about `lox.tap` is that you can also selectively log only the values you are interested in.
-By setting the keyword argument `argnames` to a desired iterable of strings, 
-  you can specify which values to log.
-The selection will be done during compiliation time, 
-  so there is no runtime overhead for filtering out unwanted logs.
-
-### 4. Using Loggers
-
-`lox` provides a variety of loggers that can be used to write the logs to different backends.
-Loggers also support the two main function transformations, `lox.tap` and `lox.spool`.
-For example, you can use the `lox.loggers.SaveLogger` to save the logs to a file.
+The second transformation, `lox.spool`, "spools up" all logs during execution and returns them alongside the function's output. 
+This is especially useful when frequent callbacks would be too expensive. 
+For instance, instead of logging on every iteration, you can collect all logs for a training step and emit them in a single call.
+`spool` is also particularly useful for collecting logs over multiple steps and then applying a reduction like `jnp.mean` to them.
 ```python
-from lox.loggers import SaveLogger
-logger = SaveLogger("logs.pkl")
-logger_state = logger.init(jax.random.key(0))
-y = logger.tap(f, logger_state)(xs)
+>>> y, logs = lox.spool(f)(xs)
+>>> print("Collected Logs:", logs)
+Collected Logs: {'xs': [0, 1, 2], 'carry': [0, 1, 3]}
 ```
-These loggers are also fully compatible with `vmap`.
-In the following example, 
-  we will use the `WandBLogger` to log the data of 5 parallel runs to Weights and Biases.
+
+## Logdicts
+
+Lox provides its own internal data structure for logs called `logdict`, which is a subclass of Python's built-in `dict`.
+To the naked eye, it behaves like a regular dictionary, but it comes with some additional features that make it easier to work with logs.
+In addition to the raw data, a `logdict` also contains the steps at which the logs were recorded.
+The following example demonstrates how to log data along with additional step information.
+
 ```python
-from lox.wandb import WandBLogger
-logger = WandBLogger(project="lox", name="experiment")
-def g(key):
-    xs = jax.random.normal(key, (10,)) + mean
-    logger_state = logger.init(key)
-    y = logger.tap(f, logger_state)(xs)
-    return xs
-keys = jax.random.split(jax.random.key(0), 5)
-y = jax.vmap(g)(keys)
+>>> def f(xs):
+...     def body(i, carry):
+...         carry += xs[i]
+...         lox.log({"carry": carry}, step=i, episode=i//2)
+...         return carry
+...     y = jax.lax.fori_loop(0, len(xs), body, 0)
+...     return y
+>>> y, logs = lox.spool(f)(xs)
+```
+
+In the example above, we log the `carry` value at each iteration of a loop, along with the current step and episode.
+The step information can be accessed using attributes of the logdict.
+We can then access them using `logs.step` and `logs.episode`.
+An arbitrary amount of keywords can be added to `lox.log` which will all be treated as additional step information.
+
+```python
+>>> print("Collected Logs:", logs["carry"])
+Collected Logs: [0, 1, 3]
+>>> print("Corresponding Steps:", logs.step['carry'])
+Corresponding Steps: [0, 1, 2]
+>>> print("Corresponding Episodes:", logs.episode['carry'])
+Corresponding Episodes: [0, 0, 1]
+```
+
+## Loggers
+
+Lox comes with built-in loggers for common use cases.
+Loggers support both `lox.tap` and `lox.spool` transformations and let you easily log to different backends.
+An example is `lox.loggers.SaveLogger`, which saves logs to a specified directory in a structured format for later use. Loggers are instantiaded with any necessary configuration, and then initialized with a random key using `init` to produce a logger state. This state is then passed to the `tap` or `spool` transformation along with the function to be logged.
+
+```python
+>>> import lox.loggers
+>>> key = jax.random.key(0)
+>>> logger = lox.loggers.SaveLogger("./.lox/")
+>>> logger_state = logger.init(key)
+>>> y = logger.spool(f, logger_state)(xs)
+```
+
+Loggers can also be combined to log to multiple backends simultaneously using `lox.loggers.MultiLogger`. The difference between `tap` and `spool` is preserved, so you can use `MultiLogger` with either transformation. Hence `spool` only logs once at the env of the function execution, while `tap` logs every time a log is encountered.
+
+```python
+>>> console_logger = lox.loggers.ConsoleLogger()
+>>> save_logger = lox.loggers.SaveLogger("./.lox/")
+>>> multi_logger = lox.loggers.MultiLogger(console_logger, save_logger)
+>>> multi_logger_state = multi_logger.init(key)
+>>> y = multi_logger.tap(f, multi_logger_state)(xs)
 ```

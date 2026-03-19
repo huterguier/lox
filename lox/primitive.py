@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Iterable
 
 import jax
 import jax.numpy as jnp
@@ -12,18 +12,15 @@ lox_p = core.Primitive("lox")
 lox_p.multiple_results = True
 
 
-def log(
-    data: dict[str, Any], explicit=False, prefix: str = "", **steps: int
-) -> logdict:
+def log(data: dict[str, Any], tags: Iterable[str] = (), **steps: int) -> logdict:
     """
     Fundamental logging primitive for Lox.
     This primitive creates a logdict for a single data point and associates it with the provided steps.
 
     Args:
         data: A dictionary containing the data to be logged.
-        explicit: Wether to the data is logged by default or only when explicitly specified.
+        tags: An iterable of strings representing tags associated with the log.
         steps: Keyword arguments where keys are step names and values are step numbers.
-        prefix: A string prefix to be added to each key in the data dictionary.
 
     Returns:
         logdict: A logdict object containing the logged data and steps.
@@ -31,9 +28,24 @@ def log(
     Examples:
         By default lox.log complies with the pure functional programming paradigm of JAX,
         meaning it does not have side effects and does not mutate the state.
+        Let's look at this simple example of a function that adds 1.0 to its input.
+
+        >>> def f(x):
+        >>>     return x + 1.0
+        >>> f(1.0)
+        2.0
+
+        If we insert a logging statement inside the function, the function's behavior remains unchanged.
+
+        >>> def f_log(x):
+        >>>     lox.log({"x": x})
+        >>>     return x + 1.0
+        >>> f_log(1.0)
+        2.0
+
+        In order to actually retrieve or use the logged data, we need to apply a function transformation such as :attr:`spool` or :attr:`tap`.
 
     """
-    data = {f"{prefix}{key}": value for key, value in data.items()}
     data_logdict = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 0), data)
     steps_logdict = {
         key_step: stepdict(
@@ -43,40 +55,40 @@ def log(
     }
     logs = logdict(data_logdict, **steps_logdict)
     logs_flat, structure = jax.tree_util.tree_flatten(logs)
-    _ = lox_p.bind(*logs_flat, explicit=explicit, structure=structure)
+    _ = lox_p.bind(*logs_flat, tags=tuple(tags), structure=structure)
     return jax.tree_util.tree_unflatten(structure, logs_flat)
 
 
 @lox_p.def_impl
-def lox_impl(*logs_flat, explicit, structure):
-    del structure, explicit
+def lox_impl(*logs_flat, tags, structure):
+    del structure, tags
     return logs_flat
 
 
 @lox_p.def_effectful_abstract_eval
-def lox_abstract_eval(*logs_flat, explicit, structure):
-    del structure, explicit
+def lox_abstract_eval(*logs_flat, tags, structure):
+    del structure, tags
     return list(logs_flat), {DebugEffect()}
 
 
-def lox_lowering(*logs_flat, explicit, structure):
-    del structure, explicit
+def lox_lowering(*logs_flat, tags, structure):
+    del structure, tags
     return logs_flat
 
 
 mlir.register_lowering(lox_p, mlir.lower_fun(lox_lowering, multiple_results=True))
 
 
-def lox_batch(vector_arg_values, batch_axes, explicit, structure):
-    outs = lox_p.bind(*vector_arg_values, explicit=explicit, structure=structure)
+def lox_batch(vector_arg_values, batch_axes, tags, structure):
+    outs = lox_p.bind(*vector_arg_values, tags=tags, structure=structure)
     return outs, batch_axes
 
 
 batching.primitive_batchers[lox_p] = lox_batch
 
 
-def lox_jvp(arg_values, arg_tangents, explicit, structure):
-    lox_p.bind(*arg_values, explicit=explicit, structure=structure)
+def lox_jvp(arg_values, arg_tangents, tags, structure):
+    lox_p.bind(*arg_values, tags=tags, structure=structure)
     return arg_values, arg_tangents
 
 
@@ -84,6 +96,7 @@ ad.primitive_jvps[lox_p] = lox_jvp
 
 
 def lox_p_transpose(ct, x):
+    del ct, x
     raise ValueError("Transpose doesn't support logging")
 
 

@@ -139,15 +139,3 @@ By default `lox` comes without any of the external experiment loggers. Make sure
 ```bash
 pip install "lox[wandb,neptune] @ git+https://github.com/huterguier/lox"
 ```
-
-## Citation
-If you use ``lox`` in your research, feel free to cite it as follows.
-```bibtex
-@software{lox2025github,
-  author = {Henrik Metternich},
-  title = {{lox}: Logging in JAX.},
-  url = {https://github.com/huterguier/lox},
-  version = {0.1.0},
-  year = {2025},
-}
-```

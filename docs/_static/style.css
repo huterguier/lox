@@ -306,3 +306,20 @@ html[data-theme="light"] .highlight span.gr {
 .bd-breadcrumbs {
   margin-bottom: 0;
 }
+
+.feature-box {
+  border: 1px solid #e1e4e5;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background-color: #f8f9fa;
+}
+
+.feature-box p:last-child {
+  margin-bottom: 0;
+}
+
+html[data-theme="dark"] .feature-box {
+  background-color: #202124;
+  border-color: #3c4043;
+}

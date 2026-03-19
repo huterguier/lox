@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 
-from lox.typing import Array
+from lox.utils.typing import Array
 
 
 @jax.tree_util.register_dataclass

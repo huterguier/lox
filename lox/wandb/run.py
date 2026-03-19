@@ -2,6 +2,6 @@ from dataclasses import dataclass
 
 import jax
 
-from lox.string import StringArray
+from lox.utils.string_array import StringArray
 
 runs_wandb = {}

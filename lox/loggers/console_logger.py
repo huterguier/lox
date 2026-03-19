@@ -21,18 +21,6 @@ class ConsoleLoggerState(LoggerState):
     id: jax.Array
 
 
-def make_dashboard(logs: logdict) -> Table:
-    table = Table(
-        box=box.ROUNDED,
-        expand=True,
-        show_header=False,
-        border_style="white",
-    )
-    for k, v in logs.items():
-        table.add_row(f"[bold]{k}[/bold]", f"{v[-1]:.4f}")
-    return table
-
-
 class ConsoleLogger(Logger[ConsoleLoggerState]):
     """
     A logger that outputs logs to stdout.
@@ -40,16 +28,15 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
 
     console: Console
     logss: dict[str, logdict]
-    lives: dict[str, Live]
+    live: Live
 
     def __init__(self):
         self.console = Console()
         self.logss = {}
-        self.lives = {}
 
     def init(self, key: jax.Array) -> ConsoleLoggerState:
         def callback(key):
-            id = jnp.int32(len(self.lives))
+            id = jnp.int32(len(self.logss.keys()))
             self.logss[str(id)] = logdict({})
             table = Table(
                 box=box.ROUNDED,
@@ -57,10 +44,8 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                 show_header=False,
                 border_style="white",
             )
-            self.lives[str(id)] = Live(
-                table, console=self.console, refresh_per_second=4
-            )
-            self.lives[str(id)].start()
+            self.live = Live(table, console=self.console, refresh_per_second=4)
+            self.live.start()
             return id
 
         id = jax.experimental.io_callback(
@@ -71,34 +56,23 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
 
         return ConsoleLoggerState(key=key, id=id)
 
-    def log(
-        self, logger_state: ConsoleLoggerState, logs: logdict, prefix: str = ""
-    ) -> None:
-        def callback(logger_state, logs):
-            id = str(logger_state.id)
-            self.logss[id] += logs
-            table = make_dashboard(logs)
-            self.lives[id].update(table)
-
-        if prefix:
-            logs = logs.prefix(prefix)
-        jax.debug.callback(
-            callback,
-            logger_state=logger_state,
-            logs=logs,
+    def callback(self, logger_state: ConsoleLoggerState, logs: logdict):
+        id = str(logger_state.id)
+        self.logss[id] |= logs
+        table = Table(
+            box=box.ROUNDED,
+            expand=True,
+            show_header=False,
+            border_style="white",
         )
+        try:
+            logss = jax.tree.map(lambda *x: jnp.stack(x), *list(self.logss.values()))
+        except Exception as e:
+            return
 
-    def tap(
-        self,
-        f: Callable,
-        logger_state: ConsoleLoggerState,
-        argnames: Optional[Sequence[str]] = None,
-        prefix: str = "",
-    ) -> Callable:
-        def callback(logs):
-            id = str(logger_state.id)
-            self.logss[id] += logs
-            table = make_dashboard(self.logss[id])
-            self.lives[id].update(table)
-
-        return tap(f, callback=callback, argnames=argnames, prefix=prefix)
+        for k, v in logss.items():
+            table.add_row(
+                f"[bold]{k}[/bold]",
+                f"{jnp.mean(v, axis=0)[0]} ± {jnp.std(v, axis=0)[0]}",
+            )
+        self.live.update(table)

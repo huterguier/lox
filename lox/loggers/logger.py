@@ -1,12 +1,14 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import wraps
-from typing import Callable, Generic, Optional, Sequence, TypeVar
+from typing import Callable, Generic, Sequence, TypeVar
 
 import jax
 
 from lox.logdict import logdict
 from lox.spooling import spool
+from lox.tapping import tap
+from lox.utils.typing import PyTree
 
 
 @jax.tree_util.register_dataclass
@@ -24,8 +26,17 @@ class Logger(Generic[LoggerStateT], ABC):
     def init(self, *args, **kwargs) -> LoggerStateT:
         pass
 
+    def log(self, logger_state: LoggerStateT, logs: logdict) -> LoggerStateT:
+        jax.debug.callback(
+            self.callback,
+            logger_state=logger_state,
+            logs=logs,
+            ordered=True,
+        )
+        return logger_state
+
     @abstractmethod
-    def log(self, logger_state: LoggerStateT, logs: logdict, prefix: str = "") -> None:
+    def callback(self, logger_state: LoggerStateT, logs: logdict):
         pass
 
     def spool(
@@ -33,16 +44,16 @@ class Logger(Generic[LoggerStateT], ABC):
         f: Callable,
         logger_state: LoggerStateT,
         keep_logs: bool = False,
-        interval: Optional[int] = None,
-        reduce: Optional[str] = None,
+        interval: int | None = None,
+        reduce: str | None = None,
         prefix: str = "",
-    ) -> Callable:
+    ) -> Callable[..., tuple[PyTree, LoggerStateT]]:
         """
         Wraps a function to log its output.
 
         Args:
-            logger_state: The state of the logger.
             f: The function to be wrapped.
+            logger_state: The state of the logger.
             keep_logs: Whether to keep all logs or just the reduced value.
             interval: The interval at which to log.
             reduce: The reduction method to apply to the logs.
@@ -61,17 +72,18 @@ class Logger(Generic[LoggerStateT], ABC):
                 reduce=reduce,
                 prefix=prefix,
             )(*args, **kwargs)
-            self.log(logger_state, logs)
-            return y
+            return y, self.log(logger_state, logs)
 
         return wrapped
 
-    @abstractmethod
     def tap(
         self,
         f: Callable,
         logger_state: LoggerStateT,
-        argnames: Optional[Sequence[str]] = None,
+        argnames: Sequence[str] | None = None,
         prefix: str = "",
-    ) -> Callable:
-        pass
+    ) -> Callable[..., LoggerStateT]:
+        def callback(logs: logdict):
+            self.callback(logger_state, logs)
+
+        return tap(f, callback=callback, argnames=argnames, prefix=prefix)

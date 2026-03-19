@@ -1,16 +1,14 @@
 import os
 import shutil
 from dataclasses import dataclass
-from typing import Callable, Optional, Sequence
 
 import jax
 
+from lox.io import save_callback
 from lox.logdict import logdict
 from lox.loggers.logger import Logger, LoggerState
-from lox.save import save, save_callback
-from lox.tapping import tap
-from lox.typing import Key
 from lox.utils import get_path
+from lox.utils.typing import Key
 
 
 @jax.tree_util.register_dataclass
@@ -42,25 +40,9 @@ class SaveLogger(Logger[SaveLoggerState]):
             else:
                 os.makedirs(path)
 
-        jax.debug.callback(callback, ordered=True, key=key)
+        jax.debug.callback(callback, key, ordered=True)
 
         return SaveLoggerState(key=key)
 
-    def log(
-        self, logger_state: SaveLoggerState, logs: logdict, prefix: str = ""
-    ) -> None:
-        if prefix:
-            logs = logs.prefix(prefix)
-        save(logs, self.path, key=logger_state.key)
-
-    def tap(
-        self,
-        f: Callable,
-        logger_state: SaveLoggerState,
-        argnames: Optional[Sequence[str]] = None,
-        prefix: str = "",
-    ) -> Callable:
-        def callback(logs: logdict):
-            save_callback(logs, self.path, key=logger_state.key)
-
-        return tap(f, callback=callback, argnames=argnames, prefix=prefix)
+    def callback(self, logger_state: SaveLoggerState, logs: logdict):
+        save_callback(logs, self.path, key=logger_state.key)

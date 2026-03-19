@@ -1,8 +1,9 @@
 from typing import Any, Callable
 
 import jax
+from jax import Array as Key
 
-from lox.typing import Key
+# from lox.utils.typing import Key
 
 
 def is_hashable(arg):
