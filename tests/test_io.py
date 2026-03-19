@@ -1,7 +1,8 @@
+import jax
 import jax.numpy as jnp
 import pytest
 
-from lox.save import load, save
+from lox.io import load, save
 
 
 @pytest.fixture(
@@ -20,8 +21,26 @@ def test_save_load(tmp_path, logs):
     path = str(tmp_path / "test_logs.pkl")
     save(logs, path)
     loaded_logs = load(path)
-    print(loaded_logs)
 
+    for key in logs:
+        if isinstance(logs[key], dict):
+            for subkey in logs[key]:
+                assert jnp.array_equal(
+                    logs[key][subkey], loaded_logs[key][subkey]
+                ), f"Mismatch in nested key: {key}->{subkey}"
+        else:
+            assert jnp.array_equal(
+                logs[key], loaded_logs[key]
+            ), f"Mismatch in key: {key}"
+
+
+def test_vmap_save_load(tmp_path, logs):
+    path = str(tmp_path / "vmap_logs.pkl")
+    keys = jnp.stack([jax.random.key(i) for i in range(3)])
+    jax.vmap(lambda key: save(logs, path, mode="w", key=key))(keys)
+    loaded_logs = load(path, keys)
+
+    loaded_logs = jax.tree.map(lambda x: x[0], loaded_logs)
     for key in logs:
         if isinstance(logs[key], dict):
             for subkey in logs[key]:
@@ -45,11 +64,3 @@ def test_save_empty_logs(tmp_path):
     save(empty_logs, path)
     loaded_logs = load(path)
     assert loaded_logs == empty_logs, "Loaded logs should be empty dictionary"
-
-
-if __name__ == "__main__":
-    data = {"x": jnp.zeros((5,)), "y": jnp.ones((2,))}
-    from pathlib import Path
-
-    path = Path(".lox/")
-    test_save_load(path, data)
