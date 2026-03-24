@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Callable, Optional, Sequence
 
 import jax
 import jax.experimental
@@ -11,7 +10,6 @@ from rich.table import Table
 
 from lox.logdict import logdict
 from lox.loggers.logger import Logger, LoggerState
-from lox.tapping import tap
 
 
 @jax.tree_util.register_dataclass
@@ -67,7 +65,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         )
         try:
             logss = jax.tree.map(lambda *x: jnp.stack(x), *list(self.logss.values()))
-        except Exception as e:
+        except:
             return
 
         for k, v in logss.items():
