@@ -25,6 +25,9 @@ classifiers = [
 wandb = [
   "wandb>=0.20.1",
 ]
+matplotlib = [
+  "matplotlib>=3.7.0",
+]
 neptune = [
   "neptune-client>=0.18.3",
 ]
