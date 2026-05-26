@@ -122,7 +122,7 @@ def load_callback(
 
     if isinstance(path, StringArray):
         path = str(path)
-    if not key:
+    if key is None:
         return load_data(path)
     else:
         if key.ndim >= 1:  # or len(key.shape) > 1
