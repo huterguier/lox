@@ -86,19 +86,56 @@ def strip_jaxpr(
     new_eqns = []
     for eqn in jaxpr.eqns:
         if eqn.primitive == lox_p:
-            logs_in = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
+            n_logs = eqn.params["n_logs"]
+            n_defaults = eqn.params["n_defaults"]
+            logs_flat_in = eqn.invars[:n_logs]
+            defaults_flat_in = eqn.invars[n_logs : n_logs + n_defaults]
+            logs_in = jax.tree.unflatten(eqn.params["structure"], logs_flat_in)
             logs_out = jax.tree.unflatten(eqn.params["structure"], eqn.outvars)
+            defaults_in = jax.tree.unflatten(
+                eqn.params["default_structure"], defaults_flat_in
+            )
+            default_mask_in = dict(zip(eqn.params["default_keys"], eqn.params["default_mask"]))
+            default_values_in = dict(
+                zip(eqn.params["default_keys"], eqn.params["default_values"])
+            )
             if tags is not None and any(tag in tags for tag in eqn.params["tags"]):
                 logs_in = logdict({})
                 logs_out = logdict({})
+                defaults_in = {}
+                default_mask_in = {}
+                default_values_in = {}
             elif argnames:
                 logs_in = logs_in.filter(lambda k, _: k not in argnames)
                 logs_out = logs_out.filter(lambda k, _: k not in argnames)
-            new_invars, new_structure = jax.tree.flatten(logs_in)
+                defaults_in = {
+                    k: v for k, v in defaults_in.items() if k not in argnames
+                }
+                default_mask_in = {
+                    k: v for k, v in default_mask_in.items() if k not in argnames
+                }
+                default_values_in = {
+                    k: v for k, v in default_values_in.items() if k not in argnames
+                }
+            new_logs_invars, new_structure = jax.tree.flatten(logs_in)
+            new_defaults_invars, new_default_structure = jax.tree.flatten(defaults_in)
+            new_invars = [
+                *new_logs_invars,
+                *new_defaults_invars,
+            ]
             new_eqns.append(eqn.replace(
                 invars=new_invars,
                 outvars=jax.tree.leaves(logs_out),
-                params={**eqn.params, "structure": new_structure},
+                params={
+                    **eqn.params,
+                    "structure": new_structure,
+                    "default_structure": new_default_structure,
+                    "default_keys": tuple(default_mask_in.keys()),
+                    "default_mask": tuple(default_mask_in.values()),
+                    "default_values": tuple(default_values_in[k] for k in default_mask_in),
+                    "n_logs": len(new_logs_invars),
+                    "n_defaults": len(new_defaults_invars),
+                },
             ))
         elif eqn.primitive == jax.extend.core.primitives.scan_p:
             c = eqn.params["jaxpr"]

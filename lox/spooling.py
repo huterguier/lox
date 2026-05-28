@@ -10,7 +10,7 @@ from jax._src import source_info_util
 from jax.core import ShapedArray
 from jax.extend.core import ClosedJaxpr, Jaxpr, JaxprEqn, Literal, Var
 
-from lox.logdict import logdict
+from lox.logdict import logdict, stepdict
 from lox.primitive import lox_p
 from lox.stripping import strip_jaxpr
 from lox.utils import flatten, is_hashable
@@ -178,16 +178,26 @@ def apply(f: Callable, ctx, *invars: Any) -> tuple[JaxprEqn, Any]:
     closed_jaxpr_f, shape_f = jax.make_jaxpr(f, return_shape=True)(*invars_avals)
     structure_f = jax.tree.structure(shape_f)
     jaxpr_f = closed_jaxpr_f.jaxpr
+    if closed_jaxpr_f.consts:
+        const_literals = [Literal(c, jax.typeof(c)) for c in closed_jaxpr_f.consts]
+        call_jaxpr = jaxpr_f.replace(
+            constvars=[],
+            invars=[*jaxpr_f.constvars, *jaxpr_f.invars],
+        )
+        eqn_invars = [*const_literals, *jax.tree.leaves(invars)]
+    else:
+        call_jaxpr = jaxpr_f
+        eqn_invars = jax.tree.leaves(invars)
     eqn_f = JaxprEqn(
-        jax.tree.leaves(invars),
-        jaxpr_f.outvars,
+        eqn_invars,
+        call_jaxpr.outvars,
         jax.extend.core.primitives.call_p,
-        {"call_jaxpr": jaxpr_f},
+        {"call_jaxpr": call_jaxpr},
         (),
         source_info_util.current(),
         ctx,
     )
-    outvars = jax.tree.unflatten(structure_f, jaxpr_f.outvars)
+    outvars = jax.tree.unflatten(structure_f, call_jaxpr.outvars)
     return eqn_f, outvars
 
 
@@ -208,7 +218,8 @@ def spool_jaxpr(
     ctx = jaxpr.eqns[0].ctx if jaxpr.eqns else None
 
     def spool_lox_p(eqn: JaxprEqn) -> logdict:
-        logs_eqn = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
+        n_logs = eqn.params["n_logs"]
+        logs_eqn = jax.tree.unflatten(eqn.params["structure"], eqn.invars[:n_logs])
         if argnames:
             if tags is None or not any(tag in tags for tag in eqn.params["tags"]):
                 logs_eqn = logs_eqn.filter(lambda k, _: k in argnames)
@@ -245,25 +256,262 @@ def spool_jaxpr(
         unstack_eqn, logs_eqn = apply(unstack, ctx, logs_scan)
         return new_eqn, logs_eqn, [unstack_eqn]
 
+    def value_length(value: Any) -> int:
+        leaves = jax.tree_util.tree_leaves(value)
+        if not leaves:
+            return 0
+        return leaves[0].aval.shape[0]
+
+    def materialize_default(default_value: Any, template: Any) -> Any:
+        def entry_shape(aval):
+            return (1, *aval.shape[1:])
+
+        template_structure = jax.tree_util.tree_structure(template)
+        default_structure = jax.tree_util.tree_structure(default_value)
+        if default_structure == template_structure:
+            return jax.tree_util.tree_map(
+                lambda d, t: jax.numpy.broadcast_to(
+                    jax.numpy.asarray(d, dtype=t.aval.dtype), entry_shape(t.aval)
+                ),
+                default_value,
+                template,
+            )
+        if default_structure.num_leaves == 1:
+            scalar = jax.tree_util.tree_leaves(default_value)[0]
+            return jax.tree_util.tree_map(
+                lambda t: jax.numpy.broadcast_to(
+                    jax.numpy.asarray(scalar, dtype=t.aval.dtype), entry_shape(t.aval)
+                ),
+                template,
+            )
+        raise ValueError(
+            "Default value structure must match logged value structure or be a scalar."
+        )
+
+    def extract_defaults(
+        jaxpr_local: Jaxpr, consts_local: tuple[Any, ...] = ()
+    ) -> dict[str, list[Any | None]]:
+        defaults: dict[str, list[Any | None]] = {}
+        del consts_local
+
+        def append_defaults(new_defaults: dict[str, list[Any | None]]):
+            for key, values in new_defaults.items():
+                defaults.setdefault(key, []).extend(values)
+
+        for local_eqn in jaxpr_local.eqns:
+            if local_eqn.primitive == lox_p:
+                n_logs = local_eqn.params["n_logs"]
+                logs_flat = local_eqn.invars[:n_logs]
+                logs_local = jax.tree.unflatten(local_eqn.params["structure"], logs_flat)
+                default_mask_local = dict(
+                    zip(local_eqn.params["default_keys"], local_eqn.params["default_mask"])
+                )
+                default_values_local = dict(
+                    zip(local_eqn.params["default_keys"], local_eqn.params["default_values"])
+                )
+                if argnames:
+                    if tags is None or not any(
+                        tag in tags for tag in local_eqn.params["tags"]
+                    ):
+                        logs_local = logs_local.filter(lambda k, _: k in argnames)
+                    else:
+                        logs_local = logdict({})
+                elif tags:
+                    if not any(tag in tags for tag in local_eqn.params["tags"]):
+                        logs_local = logdict({})
+                append_defaults(
+                    {
+                        key: [
+                            default_values_local[key]
+                            if default_mask_local.get(key, False)
+                            else None
+                        ]
+                        for key in logs_local
+                    }
+                )
+            elif local_eqn.primitive == jax.extend.core.primitives.scan_p:
+                scan_defaults = extract_defaults(
+                    local_eqn.params["jaxpr"].jaxpr, local_eqn.params["jaxpr"].consts
+                )
+                append_defaults(
+                    {
+                        key: values * local_eqn.params["length"]
+                        for key, values in scan_defaults.items()
+                    }
+                )
+            elif local_eqn.primitive == jax.extend.core.primitives.jit_p:
+                append_defaults(
+                    extract_defaults(
+                        local_eqn.params["jaxpr"].jaxpr,
+                        local_eqn.params["jaxpr"].consts,
+                    )
+                )
+            elif local_eqn.primitive == jax.extend.core.primitives.call_p:
+                append_defaults(extract_defaults(local_eqn.params["call_jaxpr"]))
+            elif local_eqn.primitive == jax._src.ad_checkpoint.remat_p:
+                append_defaults(extract_defaults(local_eqn.params["jaxpr"]))
+            elif local_eqn.primitive == jax.extend.core.primitives.cond_p:
+                branch_defaults = [
+                    extract_defaults(branch.jaxpr, branch.consts)
+                    for branch in local_eqn.params["branches"]
+                ]
+                cond_defaults: dict[str, list[Any | None]] = {}
+                all_keys = set().union(*(branch.keys() for branch in branch_defaults))
+                for key in all_keys:
+                    target = max(len(branch.get(key, [])) for branch in branch_defaults)
+                    values = []
+                    for idx in range(target):
+                        default_value = None
+                        for branch in branch_defaults:
+                            if idx < len(branch.get(key, [])) and branch[key][idx] is not None:
+                                default_value = branch[key][idx]
+                                break
+                        values.append(default_value)
+                    cond_defaults[key] = values
+                append_defaults(cond_defaults)
+
+        return defaults
+
     def spool_cond_p(eqn: JaxprEqn) -> tuple[JaxprEqn, logdict, list[JaxprEqn]]:
         branches = eqn.params["branches"]
         new_branches = []
         logs_branches = []
+        defaults_branches = []
         for branch in branches:
             new_branch_jaxpr, logs_branch = spool_jaxpr(branch.jaxpr, argnames, tags)
             new_branches.append(ClosedJaxpr(new_branch_jaxpr, branch.consts))
             logs_branches.append(logs_branch)
+            defaults_branches.append(extract_defaults(branch.jaxpr, branch.consts))
 
         if not any(logs_branches):
             return eqn, logdict({}), []
 
+        all_keys = set().union(*(logs_branch.keys() for logs_branch in logs_branches))
+        target_lengths = {
+            key: max(
+                value_length(logs_branch[key]) if key in logs_branch else 0
+                for logs_branch in logs_branches
+            )
+            for key in all_keys
+        }
+
+        defaults_by_key: dict[str, list[Any | None]] = {}
+        for key in all_keys:
+            target = target_lengths[key]
+            defaults_by_key[key] = []
+            for idx in range(target):
+                default_value = None
+                for branch_defaults in defaults_branches:
+                    values = branch_defaults.get(key, [])
+                    if idx < len(values) and values[idx] is not None:
+                        default_value = values[idx]
+                        break
+                defaults_by_key[key].append(default_value)
+
+        padded_branches = []
+        padded_logs_branches = []
+        all_step_names = set().union(*(logs_branch.steps.keys() for logs_branch in logs_branches))
+        for branch, logs_branch in zip(new_branches, logs_branches):
+            pads_data = {}
+            pads_steps = {}
+            for key in all_keys:
+                target = target_lengths[key]
+                branch_count = value_length(logs_branch[key]) if key in logs_branch else 0
+                if branch_count >= target:
+                    continue
+                missing_defaults = defaults_by_key[key][branch_count:target]
+                if any(default_value is None for default_value in missing_defaults):
+                    raise ValueError(
+                        "Divergent logging branches detected in jax.lax.cond. "
+                        f"Missing defaults for key '{key}'."
+                    )
+                template = next(
+                    logs_other[key]
+                    for logs_other in logs_branches
+                    if key in logs_other and value_length(logs_other[key]) == target
+                )
+                pads_data[key] = jax.tree_util.tree_map(
+                    lambda *vals: jax.numpy.concatenate(vals, axis=0),
+                    *[
+                        materialize_default(default_value, template)
+                        for default_value in missing_defaults
+                    ],
+                )
+                for step_name in all_step_names:
+                    if step_name not in pads_steps:
+                        pads_steps[step_name] = {}
+                    dtype = (
+                        logs_branch.steps[step_name][key].aval.dtype
+                        if step_name in logs_branch.steps and key in logs_branch.steps[step_name]
+                        else jax.numpy.int32
+                    )
+                    pads_steps[step_name][key] = jax.numpy.zeros(
+                        (target - branch_count,), dtype=dtype
+                    )
+
+            if not pads_data and not pads_steps:
+                padded_branches.append(branch)
+                padded_logs_branches.append(logs_branch)
+                continue
+
+            def pad_logs(logs):
+                data = {}
+                for key in all_keys:
+                    if key in logs:
+                        if key in pads_data:
+                            data[key] = jax.tree_util.tree_map(
+                                lambda existing, pad: jax.numpy.concatenate(
+                                    (existing, pad), axis=0
+                                ),
+                                logs[key],
+                                pads_data[key],
+                            )
+                        else:
+                            data[key] = logs[key]
+                    else:
+                        data[key] = pads_data[key]
+                steps = {}
+                for step_name in all_step_names:
+                    step_data = {}
+                    for key in all_keys:
+                        if step_name in logs.steps and key in logs.steps[step_name]:
+                            if key in pads_steps.get(step_name, {}):
+                                step_data[key] = jax.numpy.concatenate(
+                                    (
+                                        logs.steps[step_name][key],
+                                        pads_steps[step_name][key],
+                                    ),
+                                    axis=0,
+                                )
+                            else:
+                                step_data[key] = logs.steps[step_name][key]
+                        elif key in pads_steps.get(step_name, {}):
+                            step_data[key] = pads_steps[step_name][key]
+                    if step_data:
+                        steps[step_name] = stepdict(step_data)
+                return logdict(data, **steps)
+
+            pad_eqn, padded_logs = apply(pad_logs, ctx, logs_branch)
+            n_logs_outvars = len(jax.tree.leaves(logs_branch))
+            base_outvars = (
+                branch.jaxpr.outvars[:-n_logs_outvars]
+                if n_logs_outvars
+                else list(branch.jaxpr.outvars)
+            )
+            branch_jaxpr = branch.jaxpr.replace(
+                eqns=[*branch.jaxpr.eqns, pad_eqn],
+                outvars=[*base_outvars, *jax.tree.leaves(padded_logs)],
+            )
+            padded_branches.append(ClosedJaxpr(branch_jaxpr, branch.consts))
+            padded_logs_branches.append(padded_logs)
+
         logs_eqn = jax.tree.map(
             lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)),
-            logs_branches[0],
+            padded_logs_branches[0],
         )
         new_eqn = eqn.replace(
             outvars=[*eqn.outvars, *jax.tree.leaves(logs_eqn)],
-            params={**eqn.params, "branches": tuple(new_branches)},
+            params={**eqn.params, "branches": tuple(padded_branches)},
         )
         return new_eqn, logs_eqn, []
 
@@ -283,7 +531,7 @@ def spool_jaxpr(
             logs_eqn = jax.tree.map(
                 lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_jaxpr
             )
-            const_literals = [Literal(c, jax.core.get_aval(c)) for c in inner_closed.consts]
+            const_literals = [Literal(c, jax.typeof(c)) for c in inner_closed.consts]
             call_jaxpr = new_inner_jaxpr.replace(
                 constvars=[],
                 invars=[*new_inner_jaxpr.constvars, *new_inner_jaxpr.invars],
