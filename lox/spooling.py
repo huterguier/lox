@@ -5,17 +5,50 @@ import jax
 import jax._src.ad_checkpoint
 import jax.core
 import jax.extend
+import jax.numpy as jnp
 from jax import ShapeDtypeStruct
 from jax._src import source_info_util
 from jax.core import ShapedArray
 from jax.extend.core import ClosedJaxpr, Jaxpr, JaxprEqn, Literal, Var
 
-from lox.logdict import logdict
+from lox.logdict import logdict, stepdict
 from lox.primitive import lox_p
 from lox.stripping import strip_jaxpr
 from lox.utils import flatten, is_hashable
 
 AxisName = Hashable
+
+
+def _fill_value_for_dtype(dtype):
+    if jnp.issubdtype(dtype, jnp.floating):
+        return float("nan")
+    elif jnp.issubdtype(dtype, jnp.integer):
+        return 0
+    else:
+        return False
+
+
+def _make_fill_eqn(aval: ShapedArray, ctx) -> tuple[JaxprEqn, Var]:
+    """Creates a call_p equation that produces a fill constant with the given aval."""
+    fill = _fill_value_for_dtype(aval.dtype)
+    fill_closed = jax.make_jaxpr(lambda: jnp.full(aval.shape, fill, aval.dtype))()
+    fill_jaxpr = fill_closed.jaxpr
+    const_literals = [Literal(c, jax.core.get_aval(c)) for c in fill_closed.consts]
+    call_jaxpr = fill_jaxpr.replace(
+        constvars=[],
+        invars=[*fill_jaxpr.constvars, *fill_jaxpr.invars],
+    )
+    out_var = Var(aval=aval)
+    eqn = JaxprEqn(
+        const_literals,
+        [out_var],
+        jax.extend.core.primitives.call_p,
+        {"call_jaxpr": call_jaxpr},
+        (),
+        source_info_util.current(),
+        ctx,
+    )
+    return eqn, out_var
 
 
 def spool(
@@ -26,6 +59,7 @@ def spool(
     interval: int | None = None,
     reduce: str | None = None,
     prefix: str = "",
+    unify: bool = False,
 ) -> Callable:
     """
     Spools a function to extract logs generated during its execution.
@@ -44,6 +78,9 @@ def spool(
         interval (int | None): An optional interval to subsample the logs.
         reduce (str | None): An optional reduction method to apply to the logs.
         prefix (str): An optional prefix to add to the log keys.
+        unify (bool): When True, cond branches with different log keys are unified by
+            filling missing keys with NaN (float), 0 (int), or False (bool). When False
+            (default), divergent branch log keys raise a ValueError.
 
     Returns:
         Callable: A wrapped function that returns the spooled jaxpr and logs.
@@ -99,6 +136,7 @@ def spool(
             argnames=argnames,
             tags=tags,
             keep_logs=keep_logs,
+            unify=unify,
         )(*args_flat)
         dynamic_args_flat = tuple(arg for arg in args_flat if not is_hashable(arg))
         out_spooled_structure = jax.tree.structure(out_spooled_shape)
@@ -125,6 +163,7 @@ def make_spooled_jaxpr(
     argnames: Iterable[str] | None = None,
     tags: Iterable[str] | None = None,
     keep_logs: bool = False,
+    unify: bool = False,
 ) -> Callable[..., tuple[ClosedJaxpr, Any]]:
     """
     Creates a spooled jaxpr for the given function, extracting logs and their shapes.
@@ -135,6 +174,7 @@ def make_spooled_jaxpr(
         argnames (Optional[Iterable[str]]): An optional list of argument names to be spooled.
         tags (Optional[Iterable[str]]): An optional list of tags to filter the logs.
         keep_logs (bool): Whether to keep logs in the jaxpr.
+        unify (bool): Whether to unify divergent cond branch log keys with fills.
     Returns:
         Callable[..., ClosedJaxpr | tuple[ClosedJaxpr, Any]]: A wrapped function that returns the jaxpr and logs.
     """
@@ -145,7 +185,9 @@ def make_spooled_jaxpr(
             static_argnums=static_argnums,
             return_shape=True,
         )(*args, **kwargs)
-        new_jaxpr, logs = spool_jaxpr(closed_jaxpr.jaxpr, argnames=argnames, tags=tags)
+        new_jaxpr, logs = spool_jaxpr(
+            closed_jaxpr.jaxpr, argnames=argnames, tags=tags, unify=unify
+        )
         closed_jaxpr = ClosedJaxpr(new_jaxpr, closed_jaxpr.consts)
         logs_shape = jax.tree_util.tree_map(
             lambda v: ShapeDtypeStruct(v.aval.shape, v.aval.dtype), logs
@@ -178,21 +220,29 @@ def apply(f: Callable, ctx, *invars: Any) -> tuple[JaxprEqn, Any]:
     closed_jaxpr_f, shape_f = jax.make_jaxpr(f, return_shape=True)(*invars_avals)
     structure_f = jax.tree.structure(shape_f)
     jaxpr_f = closed_jaxpr_f.jaxpr
+    const_literals = [Literal(c, jax.core.get_aval(c)) for c in closed_jaxpr_f.consts]
+    call_jaxpr = jaxpr_f.replace(
+        constvars=[],
+        invars=[*jaxpr_f.constvars, *jaxpr_f.invars],
+    )
     eqn_f = JaxprEqn(
-        jax.tree.leaves(invars),
-        jaxpr_f.outvars,
+        [*const_literals, *jax.tree.leaves(invars)],
+        call_jaxpr.outvars,
         jax.extend.core.primitives.call_p,
-        {"call_jaxpr": jaxpr_f},
+        {"call_jaxpr": call_jaxpr},
         (),
         source_info_util.current(),
         ctx,
     )
-    outvars = jax.tree.unflatten(structure_f, jaxpr_f.outvars)
+    outvars = jax.tree.unflatten(structure_f, call_jaxpr.outvars)
     return eqn_f, outvars
 
 
 def spool_jaxpr(
-    jaxpr: Jaxpr, argnames: Iterable[str] | None, tags: Iterable[str] | None
+    jaxpr: Jaxpr,
+    argnames: Iterable[str] | None,
+    tags: Iterable[str] | None,
+    unify: bool = False,
 ) -> tuple[Jaxpr, logdict]:
     """
     Spools the logs from a jaxpr, extracting logs and their shapes from each equation.
@@ -202,6 +252,7 @@ def spool_jaxpr(
         jaxpr (Jaxpr): The jaxpr to spool.
         argnames (Iterable[str] | None): An optional list of argument names to be spooled.
         tags (Iterable[str] | None): An optional list of tags to filter the logs.
+        unify (bool): Whether to unify divergent cond branch log keys with fills.
     Returns:
         tuple[Jaxpr, logdict]: The new jaxpr with log outputs and the logs.
     """
@@ -219,7 +270,7 @@ def spool_jaxpr(
 
     def spool_scan_p(eqn: JaxprEqn) -> tuple[JaxprEqn, logdict, list[JaxprEqn]]:
         inner_closed = eqn.params["jaxpr"]
-        new_inner_jaxpr, logs_jaxpr = spool_jaxpr(inner_closed.jaxpr, argnames, tags)
+        new_inner_jaxpr, logs_jaxpr = spool_jaxpr(inner_closed.jaxpr, argnames, tags, unify)
 
         if not logs_jaxpr:
             return eqn, logdict({}), []
@@ -247,29 +298,146 @@ def spool_jaxpr(
 
     def spool_cond_p(eqn: JaxprEqn) -> tuple[JaxprEqn, logdict, list[JaxprEqn]]:
         branches = eqn.params["branches"]
-        new_branches = []
-        logs_branches = []
+        new_branches_data = []
         for branch in branches:
-            new_branch_jaxpr, logs_branch = spool_jaxpr(branch.jaxpr, argnames, tags)
-            new_branches.append(ClosedJaxpr(new_branch_jaxpr, branch.consts))
-            logs_branches.append(logs_branch)
+            new_branch_jaxpr, logs_branch = spool_jaxpr(branch.jaxpr, argnames, tags, unify)
+            new_branches_data.append((new_branch_jaxpr, branch.consts, logs_branch))
 
-        if not any(logs_branches):
+        if not any(logs for _, _, logs in new_branches_data):
             return eqn, logdict({}), []
 
-        logs_eqn = jax.tree.map(
-            lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)),
-            logs_branches[0],
+        # Collect all data keys and validate shape/dtype consistency
+        all_data_keys = sorted(
+            set(k for _, _, logs in new_branches_data for k in logs.keys())
         )
+        data_key_avals: dict[str, ShapedArray] = {}
+        for key in all_data_keys:
+            for _, _, logs in new_branches_data:
+                if key in logs:
+                    aval = logs[key].aval
+                    if key in data_key_avals:
+                        existing = data_key_avals[key]
+                        if (existing.shape, existing.dtype) != (aval.shape, aval.dtype):
+                            raise ValueError(
+                                f"lox.spool: log key '{key}' has mismatched shape/dtype "
+                                f"across cond branches: {existing} vs {aval}"
+                            )
+                    else:
+                        data_key_avals[key] = aval
+
+        # Check for divergent data key sets
+        all_data_keys_set = set(all_data_keys)
+        branch_data_key_sets = [set(logs.keys()) for _, _, logs in new_branches_data]
+        has_divergent_data = any(ks != all_data_keys_set for ks in branch_data_key_sets)
+
+        if has_divergent_data and not unify:
+            parts = [
+                f"branch {i} missing {sorted(all_data_keys_set - ks)}"
+                for i, ks in enumerate(branch_data_key_sets)
+                if ks != all_data_keys_set
+            ]
+            raise ValueError(
+                f"lox.spool: cond branches log different keys ({'; '.join(parts)}). "
+                f"Use spool(..., unify=True) to fill missing keys with NaN/zero."
+            )
+
+        # Collect all step dimension names and their key avals
+        all_step_dims = sorted(
+            set(dim for _, _, logs in new_branches_data for dim in logs.steps.keys())
+        )
+        step_dim_key_avals: dict[str, dict[str, ShapedArray]] = {}
+        for dim in all_step_dims:
+            step_dim_key_avals[dim] = {}
+            for _, _, logs in new_branches_data:
+                if dim in logs.steps:
+                    for k, v in logs.steps[dim].items():
+                        aval = v.aval
+                        if k in step_dim_key_avals[dim]:
+                            existing = step_dim_key_avals[dim][k]
+                            if (existing.shape, existing.dtype) != (aval.shape, aval.dtype):
+                                raise ValueError(
+                                    f"lox.spool: step '{dim}.{k}' has mismatched "
+                                    f"shape/dtype across cond branches: {existing} vs {aval}"
+                                )
+                        else:
+                            step_dim_key_avals[dim][k] = aval
+
+        # Check for divergent step structures
+        if not unify:
+            for dim in all_step_dims:
+                all_step_keys = set(step_dim_key_avals[dim].keys())
+                for _, _, logs in new_branches_data:
+                    branch_step_keys = set(logs.steps[dim].keys()) if dim in logs.steps else set()
+                    if branch_step_keys != all_step_keys:
+                        raise ValueError(
+                            f"lox.spool: cond branches have different step keys for "
+                            f"dimension '{dim}'. Use spool(..., unify=True) to fill "
+                            f"missing step entries with 0."
+                        )
+
+        # Build unified branch jaxprs
+        n_orig_outvars = [len(branch.jaxpr.outvars) for branch in branches]
+        final_branches = []
+
+        for i, (new_branch_jaxpr, branch_consts, logs_branch) in enumerate(new_branches_data):
+            n_orig = n_orig_outvars[i]
+            original_outvars = new_branch_jaxpr.outvars[:n_orig]
+            extra_eqns = []
+
+            # Fill missing data keys
+            for key in all_data_keys:
+                if key not in logs_branch:
+                    fill_eqn, fill_var = _make_fill_eqn(data_key_avals[key], ctx)
+                    extra_eqns.append(fill_eqn)
+                    logs_branch[key] = fill_var
+
+            # Fill missing step entries
+            for dim in all_step_dims:
+                if dim not in logs_branch.steps:
+                    logs_branch.steps[dim] = stepdict({})
+                for step_key in sorted(step_dim_key_avals[dim].keys()):
+                    if step_key not in logs_branch.steps[dim]:
+                        step_aval = step_dim_key_avals[dim][step_key]
+                        fill_eqn, fill_var = _make_fill_eqn(step_aval, ctx)
+                        extra_eqns.append(fill_eqn)
+                        logs_branch.steps[dim][step_key] = fill_var
+
+            # Construct unified logdict with sorted keys for deterministic leaf ordering
+            unified_data = {k: logs_branch[k] for k in all_data_keys}
+            unified_steps = {
+                dim: stepdict(
+                    {k: logs_branch.steps[dim][k] for k in sorted(step_dim_key_avals[dim].keys())}
+                )
+                for dim in all_step_dims
+            }
+            unified_logs = logdict(unified_data, **unified_steps)
+            unified_log_leaves = jax.tree.leaves(unified_logs)
+
+            final_branch_jaxpr = new_branch_jaxpr.replace(
+                eqns=list(new_branch_jaxpr.eqns) + extra_eqns,
+                outvars=[*original_outvars, *unified_log_leaves],
+            )
+            final_branches.append(ClosedJaxpr(final_branch_jaxpr, branch_consts))
+
+        # Fresh outer Vars for the log outputs, same unified structure
+        unified_data_eqn = {k: Var(aval=data_key_avals[k]) for k in all_data_keys}
+        unified_steps_eqn = {
+            dim: stepdict(
+                {k: Var(aval=step_dim_key_avals[dim][k]) for k in sorted(step_dim_key_avals[dim].keys())}
+            )
+            for dim in all_step_dims
+        }
+        logs_eqn = logdict(unified_data_eqn, **unified_steps_eqn)
+
         new_eqn = eqn.replace(
             outvars=[*eqn.outvars, *jax.tree.leaves(logs_eqn)],
-            params={**eqn.params, "branches": tuple(new_branches)},
+            params={**eqn.params, "branches": tuple(final_branches)},
         )
         return new_eqn, logs_eqn, []
 
     def spool_while_p(eqn: JaxprEqn) -> tuple[JaxprEqn, logdict, list[JaxprEqn]]:
-        _, logs_cond = spool_jaxpr(eqn.params["cond_jaxpr"].jaxpr, argnames, tags)
-        _, logs_body = spool_jaxpr(eqn.params["body_jaxpr"].jaxpr, argnames, tags)
+        _, logs_cond = spool_jaxpr(eqn.params["cond_jaxpr"].jaxpr, argnames, tags, unify)
+        _, logs_body = spool_jaxpr(eqn.params["body_jaxpr"].jaxpr, argnames, tags, unify)
         if logs_cond or logs_body:
             print(
                 "Warning: Spooling for while loops is not supported due to non-static length."
@@ -278,7 +446,7 @@ def spool_jaxpr(
 
     def spool_jit_p(eqn: JaxprEqn) -> tuple[JaxprEqn, logdict, list[JaxprEqn]]:
         inner_closed = eqn.params["jaxpr"]
-        new_inner_jaxpr, logs_jaxpr = spool_jaxpr(inner_closed.jaxpr, argnames, tags)
+        new_inner_jaxpr, logs_jaxpr = spool_jaxpr(inner_closed.jaxpr, argnames, tags, unify)
         if logs_jaxpr:
             logs_eqn = jax.tree.map(
                 lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_jaxpr
@@ -299,7 +467,9 @@ def spool_jaxpr(
             return eqn, logdict({}), []
 
     def spool_call_p(eqn: JaxprEqn) -> tuple[JaxprEqn, logdict, list[JaxprEqn]]:
-        new_call_jaxpr, logs_call_jaxpr = spool_jaxpr(eqn.params["call_jaxpr"], argnames, tags)
+        new_call_jaxpr, logs_call_jaxpr = spool_jaxpr(
+            eqn.params["call_jaxpr"], argnames, tags, unify
+        )
         if not logs_call_jaxpr:
             return eqn, logdict({}), []
 
@@ -313,7 +483,9 @@ def spool_jaxpr(
         return new_eqn, logs_eqn, []
 
     def spool_remat_p(eqn: JaxprEqn) -> tuple[JaxprEqn, logdict, list[JaxprEqn]]:
-        new_remat_jaxpr, logs_remat_jaxpr = spool_jaxpr(eqn.params["jaxpr"], argnames, tags)
+        new_remat_jaxpr, logs_remat_jaxpr = spool_jaxpr(
+            eqn.params["jaxpr"], argnames, tags, unify
+        )
         if not logs_remat_jaxpr:
             return eqn, logdict({}), []
 
