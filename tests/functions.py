@@ -1,4 +1,5 @@
 import jax
+import jax.numpy as jnp
 
 import lox
 
@@ -8,19 +9,10 @@ def f_id(x):
     return x
 
 
-def f_id_spooled(x):
-    return x, lox.log({"x": x})
-
-
 def f_add(x):
     z = x + x
     lox.log({"x": x, "z": z})
     return z
-
-
-def f_add_spooled(x):
-    z = x + x
-    return z, lox.log({"x": x, "z": z})
 
 
 def f_scan(x):
@@ -32,30 +24,12 @@ def f_scan(x):
     return jax.lax.scan(step, 0, x)
 
 
-def f_scan_spooled(x):
-    def step(carry, x):
-        carry = carry + x.mean()
-        return carry, (carry, {"carry": carry, "x": x})
-
-    carry, (ys, data) = jax.lax.scan(step, 0, x)
-    return (carry, ys), lox.log(data)
-
-
 def f_call(x):
     def g(x):
         lox.log({"x": x})
         return x * 2
 
     return g(x) + 1
-
-
-def f_call_spooled(x):
-    def g(x):
-        y = x * 2
-        return y, lox.log({"x": x})
-
-    y, logs = g(x)
-    return y + 1, logs
 
 
 def f_jit(x):
@@ -65,16 +39,6 @@ def f_jit(x):
         return x * 3
 
     return g(x) + 1
-
-
-def f_jit_spooled(x):
-    @jax.jit
-    def g(x):
-        y = x * 3
-        return y, lox.log({"x": x})
-
-    y, logs = g(x)
-    return y + 1, logs
 
 
 def f_cond(x):
@@ -92,20 +56,6 @@ def f_cond(x):
     return jax.lax.cond(cond, true_fun, false_fun, x)
 
 
-def f_cond_spooled(x):
-    def true_fun(x):
-        x = x + 1
-        return x, lox.log({"branch": True, "x": x})
-
-    def false_fun(x):
-        x = x - 1
-        return x, lox.log({"branch": False, "x": x})
-
-    cond = x.ravel()[0] > 0
-    y, logs = jax.lax.cond(cond, true_fun, false_fun, x)
-    return y, logs
-
-
 def f_grad(x):
     def func(x):
         lox.log({"x": x})
@@ -115,16 +65,24 @@ def f_grad(x):
     return grad_func(x)
 
 
-def f_grad_spooled(x):
-    def func(x):
-        y = x.mean()
-        return y, lox.log({"x": x})
+def f_remat(x):
+    @jax.remat
+    def g(x):
+        lox.log({"x": x})
+        return x * 2
 
-    def wrapped_func(x):
-        y, log = func(x)
-        return y, log
+    return g(x) + 1
 
-    grad_func = jax.grad(wrapped_func, has_aux=True)
 
-    (grad_value, log) = grad_func(x)
-    return grad_value, log
+def f_while(x):
+    def cond(state):
+        i, _ = state
+        return i < x.shape[0]
+
+    def body(state):
+        i, carry = state
+        lox.log({"carry": carry})
+        return i + 1, carry + x[i].mean()
+
+    _, result = jax.lax.while_loop(cond, body, (jnp.array(0), jnp.array(0.0)))
+    return result

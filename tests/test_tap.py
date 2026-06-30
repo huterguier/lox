@@ -2,21 +2,14 @@ import contextlib
 import io
 
 import jax
+import jax.numpy as jnp
 import pytest
-from functions import *
+from functions import f_add, f_call, f_cond, f_grad, f_id, f_jit, f_remat, f_scan
 
 import lox
 from lox import logdict
 
-functions = [
-    (f_id),
-    (f_add),
-    (f_scan),
-    (f_call),
-    (f_jit),
-    (f_cond),
-    (f_grad),
-]
+functions = [f_id, f_add, f_scan, f_call, f_jit, f_cond, f_grad, f_remat]
 
 
 @pytest.fixture(params=[0, 1, 2])
@@ -51,3 +44,4 @@ def test_tap_spool_equivalence(f, x):
     _, logs_spool = lox.spool(f)(x)
 
     assert logs_tap.keys() == logs_spool.keys()
+    assert jax.tree.all(jax.tree.map(jnp.allclose, logs_tap, logs_spool))
