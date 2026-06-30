@@ -57,20 +57,16 @@ def log(run: WandbRun, logs: logdict):
     def callback(id, logs):
         id = str(id)
         run = runs_wandb[id]
-        if "step" in logs.steps:
+        if "step" in logs:
+            step_arr = logs["step"]
+            data_keys = [k for k in logs if k != "step"]
             ordered_data = {}
-            for k, vs in logs.items():
-                steps = logs.steps["step"]
-                if k not in steps:
-                    raise ValueError(
-                        f"Either all or none of the keys must have steps. Key {k} is missing steps."
-                    )
-                for v, step in zip(vs, steps[k]):
-                    step = int(step)
-                    if step not in ordered_data:
-                        ordered_data[step] = {k: v}
-                    else:
-                        ordered_data[step] |= {k: v}
+            for i, step in enumerate(step_arr):
+                step = int(step)
+                if step not in ordered_data:
+                    ordered_data[step] = {}
+                for k in data_keys:
+                    ordered_data[step][k] = logs[k][i]
             for step in sorted(ordered_data.keys()):
                 data = flatten(ordered_data[step])
                 run.log(data, step=step)
