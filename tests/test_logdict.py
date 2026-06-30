@@ -20,7 +20,7 @@ def test_or():
 def test_slice():
     def f(xs):
         def step(carry, x):
-            lox.log({"x": x, "carry": carry}, step=x)
+            lox.log({"x": x, "carry": carry})
             return carry + x, carry
 
         return jax.lax.scan(step, 0, xs)
