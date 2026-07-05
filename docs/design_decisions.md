@@ -45,8 +45,8 @@ The `lox` primitive is designed to be as transparent as possible:
 
 ## Data Structure: `logdict`
 Logs in `lox` are not just raw values; they are encapsulated in a `logdict`.
-- **Pytree Compatibility:** `logdict` and its helper `stepdict` are registered JAX pytrees, allowing them to be passed in and out of JAX-transformed functions.
-- **Metadata Association:** Every log value can be associated with multiple "steps" (e.g., training step, epoch, episode). These steps are tracked alongside the data and automatically handled during transformations like `vmap` or `scan`.
+- **Pytree Compatibility:** `logdict` is registered as a JAX pytree, allowing it to be passed in and out of JAX-transformed functions.
+- **Tag-Based Filtering:** Individual `lox.log` calls can be tagged with arbitrary strings. `tap`, `spool`, and `strip` can all filter on these tags, so a single set of log statements can serve multiple downstream consumers without duplicating log calls.
 - **Rich Interface:** `logdict` provides a dictionary-like interface but adds methods for `slice`, `reduce`, and merging (`+`), facilitating easy post-processing.
 
 ## Logger Abstraction
@@ -57,6 +57,6 @@ Logs in `lox` are not just raw values; they are encapsulated in a `logdict`.
 
 ## Support for JAX Transformations
 A non-negotiable goal for `lox` is full support for JAX's core transformations.
-- **`vmap`**: `lox` handles batching by automatically expanding the dimensions of logged data and steps.
+- **`vmap`**: `lox` handles batching by automatically expanding the dimensions of logged data.
 - **`scan` / `fori_loop`**: `lox` handles the sequential nature of these loops, either by streaming (in `tap`) or stacking (in `spool`).
 - **`jit`**: `lox` transformations work at the jaxpr level before compilation, ensuring that logging logic is baked into the compiled artifact.

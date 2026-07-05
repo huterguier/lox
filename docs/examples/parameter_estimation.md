@@ -39,11 +39,10 @@ It does so by iterating over the individual values `x` in `xs` and updating the 
 ### 2. Decorating the function with `lox.log`
 
 In order to use Lox, we need to decorate the function with `lox.log` statements to specify which values we want to log.
-`lox.log` takes a single positional argument, which is the dictionary of values to log.
-All additional keyword arguments are treated as timesteps and will be logged as well.
-For the sake of simplicity, we wont use any timesteps in this example, but you can refer to the [API documentation](api.md) for more details on how to use timesteps.
+`lox.log` takes a single positional argument, which is the dictionary of values to log,
+plus an optional `tags` argument that lets you selectively keep or drop logs later without
+changing the call site (see the [API documentation](api.md) for details).
 In this example, we are interested in logging the mean and standard deviation of the parameters, as well as the loss values for each step.
--- we only use scalars in this example but can be pytrees but make sure same shape
 While we only use scalars in this example, Lox can also log Arrays and PyTrees.
 When logging with the same key multiple times, it is important to ensure that the values have the same shape as `lox.spool` will concatenate the values along the first axis.
 

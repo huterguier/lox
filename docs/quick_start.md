@@ -52,32 +52,25 @@ Collected Logs: {'xs': [0, 1, 2], 'carry': [0, 1, 3]}
 
 Lox provides its own internal data structure for logs called `logdict`, which is a subclass of Python's built-in `dict`.
 To the naked eye, it behaves like a regular dictionary, but it comes with some additional features that make it easier to work with logs.
-In addition to the raw data, a `logdict` also contains the steps at which the logs were recorded.
-The following example demonstrates how to log data along with additional step information.
 
 ```python
 >>> def f(xs):
 ...     def body(i, carry):
 ...         carry += xs[i]
-...         lox.log({"carry": carry}, step=i, episode=i//2)
+...         lox.log({"carry": carry})
 ...         return carry
 ...     y = jax.lax.fori_loop(0, len(xs), body, 0)
 ...     return y
 >>> y, logs = lox.spool(f)(xs)
-```
-
-In the example above, we log the `carry` value at each iteration of a loop, along with the current step and episode.
-The step information can be accessed using attributes of the logdict.
-We can then access them using `logs.step` and `logs.episode`.
-An arbitrary amount of keywords can be added to `lox.log` which will all be treated as additional step information.
-
-```python
 >>> print("Collected Logs:", logs["carry"])
 Collected Logs: [0, 1, 3]
->>> print("Corresponding Steps:", logs.step['carry'])
-Corresponding Steps: [0, 1, 2]
->>> print("Corresponding Episodes:", logs.episode['carry'])
-Corresponding Episodes: [0, 0, 1]
+```
+
+`lox.log` also accepts a `tags` argument, letting you mark individual log calls so they can be selectively kept or dropped later by `lox.tap`, `lox.spool`, and `lox.strip`, without changing the call site itself.
+
+```python
+>>> lox.log({"carry": carry}, tags=["debug"])
+>>> _, logs = lox.spool(f, tags=["debug"])(xs)
 ```
 
 ## Loggers
