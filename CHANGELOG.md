@@ -6,6 +6,26 @@ version carries breaking changes.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-09
+
+### Added
+- `Logger.spool`/`Logger.tap` (and therefore every concrete logger, including `MultiLogger`) now
+  accept `argnames`/`tags` (and `unify` for `spool`), matching the standalone `spool`/`tap`
+  functions instead of silently dropping that capability.
+
+### Changed
+- **Breaking:** `argnames`/`tags` now treat a bare string as a single name/tag, matching
+  `jax.jit`'s handling of `static_argnames`, instead of iterating over it character-by-character.
+  Previously `argnames="carry"` could silently also match unrelated keys containing `"carry"` as
+  a substring, e.g. `"c"`.
+- `MultiLogger` no longer keeps its own separate copies of `tap`/`log` — it only overrides
+  `callback` (fanning out to each sub-logger) and inherits everything else from `Logger`, so it
+  can no longer drift out of sync with future `Logger` features the way it just did.
+
+### Fixed
+- `MultiLogger.tap(..., tags=...)` no longer raises `TypeError` (its own `tap` override predated
+  the `tags` parameter added to `Logger.tap`).
+
 ## [0.2.0] - 2026-07-09
 
 ### Added
