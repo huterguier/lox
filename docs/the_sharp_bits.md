@@ -67,11 +67,28 @@ The `spool` method on a logger typically collects all logs first and then writes
 
 ## Selective Logging
 
-Both `lox.tap` and `lox.spool` allow you to filter what gets logged using `argnames` and `tags`.
-This is useful when you have many `lox.log` calls but only care about a subset of them for a specific task.
+`lox.tap`, `lox.spool`, `lox.strip`, and `lox.keep` all accept `argnames` and `tags` to filter
+which `lox.log` calls they act on. This is useful when you have many `lox.log` calls but only care
+about a subset of them for a specific task.
 
 - **`argnames`**: specific keys from your log dictionaries.
 - **`tags`**: strict filtering based on tags provided in `lox.log`.
+
+For each of `argnames`/`tags`, `None` means "no restriction on this axis" — the default, meaning
+`tap`/`spool` observe everything and `strip`/`keep` act on their full default (`strip` removes
+everything, `keep` removes nothing). Passing an iterable — **even an empty one** — switches that
+axis to "restrict to exactly this," so `argnames=[]` or `tags=[]` match nothing: `tap`/`spool`
+observe nothing, `strip` removes nothing, `keep` keeps nothing. When both `argnames` and `tags`
+are given together, a log entry must match **both** to be selected (logical AND), not either.
+
+```python
+lox.log({"a": x, "b": x}, tags=["train"])
+lox.log({"c": x}, tags=["eval"])
+
+# argnames=["a"] and tags=["train"] combine with AND: only "a" matches both.
+lox.strip(f, argnames=["a"], tags=["train"])   # removes only "a", keeps "b" and "c"
+lox.keep(f, argnames=["a"], tags=["train"])    # keeps only "a", removes "b" and "c"
+```
 
 ```python
 # In your code

@@ -11,6 +11,7 @@ Core API
    lox.tap
    lox.spool
    lox.strip
+   lox.keep
    lox.logdict
    lox.save
    lox.load

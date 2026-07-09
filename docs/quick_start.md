@@ -66,7 +66,7 @@ To the naked eye, it behaves like a regular dictionary, but it comes with some a
 Collected Logs: [0, 1, 3]
 ```
 
-`lox.log` also accepts a `tags` argument, letting you mark individual log calls so they can be selectively kept or dropped later by `lox.tap`, `lox.spool`, and `lox.strip`, without changing the call site itself.
+`lox.log` also accepts a `tags` argument, letting you mark individual log calls so they can be selectively kept or dropped later by `lox.tap`, `lox.spool`, `lox.strip`, and `lox.keep`, without changing the call site itself.
 
 ```python
 >>> lox.log({"carry": carry}, tags=["debug"])

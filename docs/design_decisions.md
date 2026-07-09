@@ -21,6 +21,7 @@ By deferring the interpretation of these log points, `lox` can decide how to han
 - **`lox.tap`**: Re-writes the jaxpr to insert `jax.debug.callback` at each `lox_p` site.
 - **`lox.spool`**: Re-writes the jaxpr to collect the logged values and return them as additional function outputs.
 - **`lox.strip`**: Removes all `lox_p` primitives from the jaxpr, effectively neutralizing logging with zero runtime overhead.
+- **`lox.keep`**: The whitelist complement of `lox.strip` — removes every `lox_p` primitive *except* the ones matching `argnames`/`tags`, instead of matching ones. With no filter it is a no-op, mirroring `strip`'s no-filter default of removing everything.
 
 ## The `lox_p` Primitive
 The `lox` primitive is designed to be as transparent as possible:
@@ -46,7 +47,7 @@ The `lox` primitive is designed to be as transparent as possible:
 ## Data Structure: `logdict`
 Logs in `lox` are not just raw values; they are encapsulated in a `logdict`.
 - **Pytree Compatibility:** `logdict` is registered as a JAX pytree, allowing it to be passed in and out of JAX-transformed functions.
-- **Tag-Based Filtering:** Individual `lox.log` calls can be tagged with arbitrary strings. `tap`, `spool`, and `strip` can all filter on these tags, so a single set of log statements can serve multiple downstream consumers without duplicating log calls.
+- **Tag-Based Filtering:** Individual `lox.log` calls can be tagged with arbitrary strings. `tap`, `spool`, `strip`, and `keep` can all filter on these tags, so a single set of log statements can serve multiple downstream consumers without duplicating log calls. `argnames`/`tags` combine with logical AND when both are given; `None` means no restriction on that axis, while an empty list restricts to exactly nothing.
 - **Rich Interface:** `logdict` provides a dictionary-like interface but adds methods for `slice`, `reduce`, and merging (`+`), facilitating easy post-processing.
 
 ## Logger Abstraction
