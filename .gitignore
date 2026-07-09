@@ -1,10 +1,20 @@
+# Python
 **/*.py[cod]
 **/__pycache__/
+.python-version
+
+# Build artifacts
 build/
 *.egg-info
 *pytype
+
+# Docs
 docs*/**/_autosummary
 docs*/_build
 docs*/**/tmp
-.python-version
+
+# Dependency lockfiles
 uv.lock
+
+# Claude Code
+CLAUDE.md
