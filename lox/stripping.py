@@ -7,9 +7,8 @@ import jax.core
 import jax.extend.core
 from jax.extend.core import ClosedJaxpr, Jaxpr
 
-from lox.logdict import logdict
 from lox.primitive import lox_p
-from lox.utils import flatten, is_hashable
+from lox.utils import flatten, is_hashable, select_logs
 
 AxisName = Hashable
 
@@ -25,6 +24,11 @@ def strip(
 
     Args:
       fun: The function from which to strip logging operations.
+      argnames: An optional iterable of log keys to strip. ``None`` means no restriction
+        on this axis; an empty iterable strips nothing. If ``tags`` is also given, only
+        entries matching both are stripped.
+      tags: An optional iterable of tags to strip. ``None`` means no restriction on this
+        axis; an empty iterable strips nothing.
     Returns:
       A new function with logging operations removed.
 
@@ -92,20 +96,17 @@ def strip_jaxpr(
     new_eqns = []
     for eqn in jaxpr.eqns:
         if eqn.primitive == lox_p:
-            if tags is not None:
-                if not any(tag in tags for tag in eqn.params["tags"]):
-                    new_eqns.append(eqn)
-            elif argnames:
-                logs_in = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
-                logs_out = jax.tree.unflatten(eqn.params["structure"], eqn.outvars)
-                logs_in = logs_in.filter(lambda k, _: k not in argnames)
-                logs_out = logs_out.filter(lambda k, _: k not in argnames)
-                new_invars, new_structure = jax.tree.flatten(logs_in)
-                new_eqns.append(eqn.replace(
-                    invars=new_invars,
-                    outvars=jax.tree.leaves(logs_out),
-                    params={**eqn.params, "structure": new_structure},
-                ))
+            logs_in = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
+            logs_out = jax.tree.unflatten(eqn.params["structure"], eqn.outvars)
+            to_strip = select_logs(logs_in, eqn.params["tags"], argnames, tags)
+            logs_in = logs_in.filter(lambda k, _: k not in to_strip)
+            logs_out = logs_out.filter(lambda k, _: k not in to_strip)
+            new_invars, new_structure = jax.tree.flatten(logs_in)
+            new_eqns.append(eqn.replace(
+                invars=new_invars,
+                outvars=jax.tree.leaves(logs_out),
+                params={**eqn.params, "structure": new_structure},
+            ))
         elif eqn.primitive == jax.extend.core.primitives.scan_p:
             c = eqn.params["jaxpr"]
             new_eqns.append(eqn.replace(params={**eqn.params,

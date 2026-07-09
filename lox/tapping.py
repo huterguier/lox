@@ -9,7 +9,7 @@ from jax.extend.core import ClosedJaxpr, Jaxpr
 
 from lox.logdict import logdict
 from lox.primitive import lox_p
-from lox.utils import flatten, is_hashable
+from lox.utils import flatten, is_hashable, select_logs
 
 AxisName = Hashable
 
@@ -153,12 +153,7 @@ def tap_jaxpr(
         if eqn.primitive == lox_p:
             structure = eqn.params["structure"]
             logs = jax.tree.unflatten(structure, eqn.invars)
-            if argnames:
-                if tags is None or not any(tag in tags for tag in eqn.params["tags"]):
-                    logs = logs.filter(lambda k, _: k in argnames)
-            elif tags:
-                if not any(tag in tags for tag in eqn.params["tags"]):
-                    logs = logdict({})
+            logs = select_logs(logs, eqn.params["tags"], argnames, tags)
             logs_avals = jax.tree.map(lambda l: l.aval, logs)
             logs_avals_flat, structure_avals = jax.tree.flatten(logs_avals)
             if logs_avals:

@@ -14,7 +14,7 @@ from jax.extend.core import ClosedJaxpr, Jaxpr, JaxprEqn, Literal, Var
 from lox.logdict import logdict
 from lox.primitive import lox_p
 from lox.stripping import strip_jaxpr
-from lox.utils import flatten, is_hashable
+from lox.utils import flatten, is_hashable, select_logs
 
 AxisName = Hashable
 
@@ -188,13 +188,7 @@ def spool_jaxpr(
 
     def spool_lox_p(eqn: JaxprEqn) -> logdict:
         logs_eqn = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
-        if argnames:
-            if tags is None or not any(tag in tags for tag in eqn.params["tags"]):
-                logs_eqn = logs_eqn.filter(lambda k, _: k in argnames)
-        elif tags:
-            if not any(tag in tags for tag in eqn.params["tags"]):
-                logs_eqn = logdict({})
-        return logs_eqn
+        return select_logs(logs_eqn, eqn.params["tags"], argnames, tags)
 
     def spool_scan_p(eqn: JaxprEqn) -> tuple[JaxprEqn, logdict, list[JaxprEqn]]:
         inner_closed = eqn.params["jaxpr"]

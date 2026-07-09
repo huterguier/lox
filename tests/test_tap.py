@@ -45,3 +45,33 @@ def test_tap_spool_equivalence(f, x):
 
     assert logs_tap.keys() == logs_spool.keys()
     assert jax.tree.all(jax.tree.map(jnp.allclose, logs_tap, logs_spool))
+
+
+def _f_ab_train_c_eval(x):
+    lox.log({"a": x, "b": x}, tags=("train",))
+    lox.log({"c": x}, tags=("eval",))
+    return x + 1
+
+
+def _collect(f, **kwargs):
+    collected = logdict({})
+
+    def callback(logs):
+        nonlocal collected
+        collected = collected + logs
+
+    lox.tap(f, callback=callback, **kwargs)(jnp.ones(4))
+    return collected
+
+
+def test_tap_argnames_empty_taps_nothing():
+    assert set(_collect(_f_ab_train_c_eval, argnames=[]).keys()) == set()
+
+
+def test_tap_tags_empty_taps_nothing():
+    assert set(_collect(_f_ab_train_c_eval, tags=[]).keys()) == set()
+
+
+def test_tap_argnames_and_tags_is_and():
+    logs = _collect(_f_ab_train_c_eval, argnames=["a"], tags=["train"])
+    assert set(logs.keys()) == {"a"}

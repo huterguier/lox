@@ -1,7 +1,9 @@
-from typing import Any, Callable
+from typing import Any, Callable, Iterable, Optional
 
 import jax
 from jax import Array as Key
+
+from lox.logdict import logdict
 
 # from lox.utils.typing import Key
 
@@ -40,6 +42,35 @@ def flatten(fun: Callable, structure: Any) -> Callable:
         return out
 
     return wrapped
+
+
+def select_logs(
+    logs: "logdict",
+    eqn_tags: Iterable[str],
+    argnames: Optional[Iterable[str]],
+    tags: Optional[Iterable[str]],
+) -> "logdict":
+    """
+    Selects the subset of ``logs`` matching ``argnames``/``tags``.
+
+    ``None`` means no restriction on that axis; a list (even an empty one) restricts
+    to exactly what's given, so ``argnames=[]`` or ``tags=[]`` select nothing. When
+    both ``argnames`` and ``tags`` are given, a log entry is selected only if it
+    matches both (AND).
+
+    Args:
+        logs (logdict): The logs produced by a single ``lox.log`` call.
+        eqn_tags (Iterable[str]): The tags associated with that call.
+        argnames (Optional[Iterable[str]]): Keys to restrict the selection to.
+        tags (Optional[Iterable[str]]): Tags to restrict the selection to.
+    Returns:
+        logdict: The selected subset of ``logs``.
+    """
+    if tags is not None and not any(tag in tags for tag in eqn_tags):
+        return logdict({})
+    if argnames is not None:
+        return logs.filter(lambda k, _: k in argnames)
+    return logs
 
 
 def get_path(path: str, key: Key) -> str:

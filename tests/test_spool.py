@@ -91,3 +91,27 @@ def test_spool_tags():
     _, logs = lox.spool(f, tags=["train"])(x)
     assert "a" in logs
     assert "b" not in logs
+
+
+def _f_ab_train_c_eval(x):
+    lox.log({"a": x, "b": x}, tags=("train",))
+    lox.log({"c": x}, tags=("eval",))
+    return x + 1
+
+
+def test_spool_empty_argnames_selects_nothing():
+    x = jnp.ones(4)
+    _, logs = lox.spool(_f_ab_train_c_eval, argnames=[])(x)
+    assert len(logs) == 0
+
+
+def test_spool_empty_tags_selects_nothing():
+    x = jnp.ones(4)
+    _, logs = lox.spool(_f_ab_train_c_eval, tags=[])(x)
+    assert len(logs) == 0
+
+
+def test_spool_argnames_and_tags_is_and():
+    x = jnp.ones(4)
+    _, logs = lox.spool(_f_ab_train_c_eval, argnames=["a"], tags=["train"])(x)
+    assert set(logs.keys()) == {"a"}
