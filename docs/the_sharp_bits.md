@@ -15,6 +15,20 @@ This is because JAX requires static output shapes for compiled functions.
 
 If one branch logs `{"a": 1}` and the other logs `{}`, `lox` (and JAX) will raise an error because the return structure of the `cond` primitive would be inconsistent.
 
+If you can't guarantee matching keys across branches, pass `unify=True` to `lox.spool` instead of restructuring your log calls. It fills any key missing from a branch with a NaN/0/False placeholder (matching the shape/dtype of whichever branch does log it) rather than raising. Note that shape/dtype mismatches for a key present in multiple branches always raise, even with `unify=True` — this only papers over *which* keys each branch logs, not conflicting shapes for the same key.
+
+```python
+>>> def f(cond, x):
+...     def true_fn(x):
+...         lox.log({"a": x, "b": x})
+...         return x
+...     def false_fn(x):
+...         lox.log({"a": x})  # no "b" here
+...         return x
+...     return jax.lax.cond(cond, true_fn, false_fn, x)
+>>> y, logs = lox.spool(f, unify=True)(True, 1.0)
+```
+
 ## Loops
 
 Logging inside loops behaves differently depending on the loop primitive used.

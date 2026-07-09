@@ -43,6 +43,7 @@ The `lox` primitive is designed to be as transparent as possible:
 - **Efficiency:** Within `scan`, `spool` automatically handles the stacking of logs across iterations, returning them as a single array.
 - **Post-processing:** Collected logs can be sliced, reduced (e.g., `jnp.mean`), or saved after the function execution.
 - **Static Shape Requirement:** Since `spool` modifies the output signature of a JAX function, it requires that the number of log events is statically known. This is why `spool` does not support `while_loop` with dynamic termination.
+- **Branch Unification:** `cond` branches must log identical keys by default (matching JAX's static-output-shape requirement). `spool(..., unify=True)` relaxes this by filling keys missing from a branch with NaN/0/False, instead of raising.
 
 ## Data Structure: `logdict`
 Logs in `lox` are not just raw values; they are encapsulated in a `logdict`.
