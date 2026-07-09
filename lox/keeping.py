@@ -15,8 +15,8 @@ AxisName = Hashable
 
 def keep(
     fun: Callable,
-    argnames: Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
+    argnames: str | Iterable[str] | None = None,
+    tags: str | Iterable[str] | None = None,
 ) -> Callable:
     """
     Removes all logging operations from the given function except the ones matching
@@ -91,8 +91,8 @@ def keep(
 
 def keep_jaxpr(
     jaxpr: Jaxpr,
-    argnames: Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
+    argnames: str | Iterable[str] | None = None,
+    tags: str | Iterable[str] | None = None,
 ) -> Jaxpr:
     """Remove all logging operations from a Jaxpr except those matching argnames/tags.
     Returns a new Jaxpr (does not mutate the input)."""

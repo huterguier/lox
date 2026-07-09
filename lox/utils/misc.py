@@ -47,8 +47,8 @@ def flatten(fun: Callable, structure: Any) -> Callable:
 def select_logs(
     logs: "logdict",
     eqn_tags: Iterable[str],
-    argnames: Optional[Iterable[str]],
-    tags: Optional[Iterable[str]],
+    argnames: Optional[str | Iterable[str]],
+    tags: Optional[str | Iterable[str]],
 ) -> "logdict":
     """
     Selects the subset of ``logs`` matching ``argnames``/``tags``.
@@ -56,16 +56,21 @@ def select_logs(
     ``None`` means no restriction on that axis; a list (even an empty one) restricts
     to exactly what's given, so ``argnames=[]`` or ``tags=[]`` select nothing. When
     both ``argnames`` and ``tags`` are given, a log entry is selected only if it
-    matches both (AND).
+    matches both (AND). A bare string is treated as a single name/tag, not an
+    iterable of characters (mirroring ``jax.jit``'s handling of ``static_argnames``).
 
     Args:
         logs (logdict): The logs produced by a single ``lox.log`` call.
         eqn_tags (Iterable[str]): The tags associated with that call.
-        argnames (Optional[Iterable[str]]): Keys to restrict the selection to.
-        tags (Optional[Iterable[str]]): Tags to restrict the selection to.
+        argnames (Optional[str | Iterable[str]]): Key(s) to restrict the selection to.
+        tags (Optional[str | Iterable[str]]): Tag(s) to restrict the selection to.
     Returns:
         logdict: The selected subset of ``logs``.
     """
+    if isinstance(argnames, str):
+        argnames = (argnames,)
+    if isinstance(tags, str):
+        tags = (tags,)
     if tags is not None and not any(tag in tags for tag in eqn_tags):
         return logdict({})
     if argnames is not None:

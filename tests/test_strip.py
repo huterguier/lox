@@ -69,3 +69,15 @@ def test_strip_empty_tags_strips_nothing():
     x = jnp.ones(4)
     _, logs = lox.spool(lox.strip(_f_ab_train_c_eval, tags=[]))(x)
     assert set(logs.keys()) == {"a", "b", "c"}
+
+
+def test_strip_bare_string_argnames_is_exact_match():
+    x = jnp.ones(4)
+    _, logs = lox.spool(lox.strip(_f_ab_train_c_eval, argnames="a"))(x)
+    assert set(logs.keys()) == {"b", "c"}
+
+
+def test_strip_bare_string_tags_is_exact_match():
+    x = jnp.ones(4)
+    _, logs = lox.spool(lox.strip(_f_ab_train_c_eval, tags="train"))(x)
+    assert set(logs.keys()) == {"c"}

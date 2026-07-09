@@ -75,3 +75,13 @@ def test_tap_tags_empty_taps_nothing():
 def test_tap_argnames_and_tags_is_and():
     logs = _collect(_f_ab_train_c_eval, argnames=["a"], tags=["train"])
     assert set(logs.keys()) == {"a"}
+
+
+def test_tap_bare_string_argnames_is_exact_match():
+    logs = _collect(_f_ab_train_c_eval, argnames="a")
+    assert set(logs.keys()) == {"a"}
+
+
+def test_tap_bare_string_tags_is_exact_match():
+    logs = _collect(_f_ab_train_c_eval, tags="train")
+    assert set(logs.keys()) == {"a", "b"}

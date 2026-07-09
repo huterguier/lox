@@ -15,8 +15,8 @@ AxisName = Hashable
 
 def strip(
     fun: Callable,
-    argnames: Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
+    argnames: str | Iterable[str] | None = None,
+    tags: str | Iterable[str] | None = None,
 ) -> Callable:
     """
     Strips all logging operations from the given function by manipulating its Jaxpr.
@@ -88,8 +88,8 @@ def strip(
 
 def strip_jaxpr(
     jaxpr: Jaxpr,
-    argnames: Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
+    argnames: str | Iterable[str] | None = None,
+    tags: str | Iterable[str] | None = None,
 ) -> Jaxpr:
     """Remove all logging operations from a Jaxpr.
     Returns a new Jaxpr (does not mutate the input)."""

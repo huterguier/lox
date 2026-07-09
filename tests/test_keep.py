@@ -69,3 +69,15 @@ def test_keep_empty_tags_keeps_nothing():
     x = jnp.ones(4)
     _, logs = lox.spool(lox.keep(_f_ab_train_c_eval, tags=[]))(x)
     assert len(logs) == 0
+
+
+def test_keep_bare_string_argnames_is_exact_match():
+    x = jnp.ones(4)
+    _, logs = lox.spool(lox.keep(_f_ab_train_c_eval, argnames="a"))(x)
+    assert set(logs.keys()) == {"a"}
+
+
+def test_keep_bare_string_tags_is_exact_match():
+    x = jnp.ones(4)
+    _, logs = lox.spool(lox.keep(_f_ab_train_c_eval, tags="train"))(x)
+    assert set(logs.keys()) == {"a", "b"}

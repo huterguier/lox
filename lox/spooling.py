@@ -21,8 +21,8 @@ AxisName = Hashable
 
 def spool(
     fun: Callable,
-    argnames: Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
+    argnames: str | Iterable[str] | None = None,
+    tags: str | Iterable[str] | None = None,
     keep_logs: bool = False,
     interval: int | None = None,
     reduce: str | None = None,
@@ -40,8 +40,8 @@ def spool(
 
     Args:
         fun (Callable): The function to be spooled.
-        argnames (Iterable[str] | None): An optional list of argument names to be spooled.
-        tags (Iterable[str] | None): An optional list of tags to filter the logs.
+        argnames (str | Iterable[str] | None): An optional list of argument names to be spooled.
+        tags (str | Iterable[str] | None): An optional list of tags to filter the logs.
         keep_logs (bool): Whether to keep logs in the jaxpr.
         interval (int | None): An optional interval to subsample the logs.
         reduce (str | None): An optional reduction method to apply to the logs.
@@ -87,8 +87,8 @@ def spool(
 def make_spooled_jaxpr(
     fun: Callable,
     static_argnums: int | Iterable[int] = (),
-    argnames: Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
+    argnames: str | Iterable[str] | None = None,
+    tags: str | Iterable[str] | None = None,
     keep_logs: bool = False,
     unify: bool = False,
 ) -> Callable[..., tuple[ClosedJaxpr, Any]]:
@@ -168,8 +168,8 @@ def _make_fill_eqn(aval: ShapedArray, ctx) -> tuple[JaxprEqn, Var]:
 
 def spool_jaxpr(
     jaxpr: Jaxpr,
-    argnames: Iterable[str] | None,
-    tags: Iterable[str] | None,
+    argnames: str | Iterable[str] | None,
+    tags: str | Iterable[str] | None,
     unify: bool = False,
 ) -> tuple[Jaxpr, logdict]:
     """
@@ -178,8 +178,8 @@ def spool_jaxpr(
 
     Args:
         jaxpr (Jaxpr): The jaxpr to spool.
-        argnames (Iterable[str] | None): An optional list of argument names to be spooled.
-        tags (Iterable[str] | None): An optional list of tags to filter the logs.
+        argnames (str | Iterable[str] | None): An optional list of argument names to be spooled.
+        tags (str | Iterable[str] | None): An optional list of tags to filter the logs.
         unify (bool): Whether to unify divergent cond branch logs.
     Returns:
         tuple[Jaxpr, logdict]: The new jaxpr with log outputs and the logs.

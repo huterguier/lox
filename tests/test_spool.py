@@ -111,6 +111,29 @@ def test_spool_empty_tags_selects_nothing():
     assert len(logs) == 0
 
 
+def test_spool_bare_string_argnames_is_exact_match():
+    x = jnp.ones(4)
+
+    def f(x):
+        lox.log({"carry": x, "c": x})
+        return x
+
+    _, logs = lox.spool(f, argnames="carry")(x)
+    assert set(logs.keys()) == {"carry"}
+
+
+def test_spool_bare_string_tags_is_exact_match():
+    x = jnp.ones(4)
+
+    def f(x):
+        lox.log({"a": x}, tags=("train",))
+        lox.log({"b": x}, tags=("t",))
+        return x
+
+    _, logs = lox.spool(f, tags="train")(x)
+    assert set(logs.keys()) == {"a"}
+
+
 def test_spool_argnames_and_tags_is_and():
     x = jnp.ones(4)
     _, logs = lox.spool(_f_ab_train_c_eval, argnames=["a"], tags=["train"])(x)

@@ -18,7 +18,7 @@ def tap(
     fun: Callable,
     callback: Callable[[logdict], None] | None = None,
     argnames: str | Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
+    tags: str | Iterable[str] | None = None,
     prefix: str = "",
 ) -> Callable:
     """
@@ -44,6 +44,7 @@ def tap(
       fun: The function you want to tap into.
       callback: A callback function to be called with the tapped values. If None, the default callback will be used to display the values.
       argnames: A string or iterable of strings specifying the names of the arguments to be printed. If None, all arguments will be tapped.
+      tags: A string or iterable of tags to filter the logs. If None, all tags will be tapped.
       prefix (str): An optional prefix to add to the log keys.
     Returns:
       Callable: A wrapped function that executes the original function and prints the tapped values.
@@ -77,7 +78,7 @@ def make_tapped_jaxpr(
     static_argnums: int | Iterable[int] = (),
     callback: Callable[[logdict], None] | None = None,
     argnames: str | Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
+    tags: str | Iterable[str] | None = None,
     prefix: str = "",
 ) -> Callable[..., tuple[ClosedJaxpr, Any]]:
     """
@@ -92,9 +93,6 @@ def make_tapped_jaxpr(
     Returns:
         Callable[..., ClosedJaxpr | tuple[ClosedJaxpr, Any]]: A wrapped function that returns the jaxpr and logs.
     """
-    if isinstance(argnames, str):
-        argnames = [argnames]
-
     def wrapped(*args, **kwargs):
         closed_jaxpr, out_shape = jax.make_jaxpr(
             fun,
@@ -116,8 +114,8 @@ def make_tapped_jaxpr(
 def tap_jaxpr(
     jaxpr: Jaxpr,
     callback: Callable[[logdict], None],
-    argnames: Iterable[str] | None = None,
-    tags: Iterable[str] | None = None,
+    argnames: str | Iterable[str] | None = None,
+    tags: str | Iterable[str] | None = None,
     prefix: str = "",
 ) -> tuple[Jaxpr, bool]:
     """
@@ -129,8 +127,8 @@ def tap_jaxpr(
     Args:
         jaxpr (Jaxpr): The Jaxpr to be tapped.
         callback (Callable[[logdict], None]): A callback function to be called with the tapped values.
-        argnames (Iterable[str] | None): An iterable of argument names to be tapped.
-        tags (Iterable[str] | None): An optional list of tags to filter the logs.
+        argnames (str | Iterable[str] | None): An iterable of argument names to be tapped.
+        tags (str | Iterable[str] | None): An optional list of tags to filter the logs.
         prefix (str): An optional prefix to add to the log keys.
     Returns:
         tuple[Jaxpr, bool]: The new jaxpr and whether it was modified.
