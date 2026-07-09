@@ -45,3 +45,39 @@ class TestLogger(ABC):
         logger_state = logger.init(key)
         _, logs = lox.spool(f)(x)
         logger.log(logger_state, logs)
+
+    def test_spool_argnames(self, logger, key, x):
+        logger_state = logger.init(key)
+        collected = []
+        logger.callback = lambda logger_state, logs: collected.append(logs)
+        logger.spool(_f_ab_train_c_eval, logger_state, argnames=["a"])(x)
+        keys = set()
+        for logs in collected:
+            keys |= set(logs.keys())
+        assert keys == {"a"}
+
+    def test_spool_tags(self, logger, key, x):
+        logger_state = logger.init(key)
+        collected = []
+        logger.callback = lambda logger_state, logs: collected.append(logs)
+        logger.spool(_f_ab_train_c_eval, logger_state, tags=["train"])(x)
+        keys = set()
+        for logs in collected:
+            keys |= set(logs.keys())
+        assert keys == {"a", "b"}
+
+    def test_tap_tags(self, logger, key, x):
+        logger_state = logger.init(key)
+        collected = []
+        logger.callback = lambda logger_state, logs: collected.append(logs)
+        logger.tap(_f_ab_train_c_eval, logger_state, tags=["train"])(x)
+        keys = set()
+        for logs in collected:
+            keys |= set(logs.keys())
+        assert keys == {"a", "b"}
+
+
+def _f_ab_train_c_eval(x):
+    lox.log({"a": x, "b": x}, tags=("train",))
+    lox.log({"c": x}, tags=("eval",))
+    return x + 1

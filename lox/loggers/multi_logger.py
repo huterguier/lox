@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, Optional, Sequence
+from typing import Sequence
 
 import jax
 
@@ -24,29 +24,8 @@ class MultiLogger(Logger[MultiLoggerState]):
         logger_states = tuple(logger.init(*args, **kwargs) for logger in self.loggers)
         return MultiLoggerState(logger_states=logger_states)
 
-    def log(self, logger_state: MultiLoggerState, logs: logdict) -> MultiLoggerState:
-        for sub_logger, sub_logger_state in zip(
-            self.loggers, logger_state.logger_states
-        ):
-            sub_logger.log(sub_logger_state, logs)
-        return logger_state
-
     def callback(self, logger_state: MultiLoggerState, logs: logdict):
-        del logger_state, logs
-        return
-
-    def tap(
-        self,
-        f: Callable,
-        logger_state: MultiLoggerState,
-        argnames: Optional[Sequence[str]] = None,
-        prefix: str = "",
-    ) -> Callable:
-        f_tapped = f
         for sub_logger, sub_logger_state in zip(
             self.loggers, logger_state.logger_states
         ):
-            f_tapped = sub_logger.tap(
-                f_tapped, sub_logger_state, argnames=argnames, prefix=prefix
-            )
-        return f_tapped
+            sub_logger.callback(sub_logger_state, logs)
