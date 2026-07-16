@@ -64,3 +64,27 @@ def test_save_empty_logs(tmp_path):
     save(empty_logs, path)
     loaded_logs = load(path)
     assert loaded_logs == empty_logs, "Loaded logs should be empty dictionary"
+
+
+def test_load_missing_path_raises(tmp_path):
+    path = str(tmp_path / "never_saved")
+    with pytest.raises(FileNotFoundError):
+        load(path)
+
+
+def test_load_argnames_list(tmp_path):
+    path = str(tmp_path / "logs")
+    data = {"carry": jnp.ones(3), "x": jnp.zeros(3)}
+    save(data, path)
+    loaded_logs = load(path, argnames=["carry"])
+    assert set(loaded_logs.keys()) == {"carry"}
+    assert jnp.array_equal(loaded_logs["carry"], data["carry"])
+
+
+def test_load_argnames_bare_string_is_exact_match(tmp_path):
+    path = str(tmp_path / "logs")
+    data = {"carry": jnp.ones(3), "c": jnp.zeros(3)}
+    save(data, path)
+    loaded_logs = load(path, argnames="carry")
+    assert set(loaded_logs.keys()) == {"carry"}
+    assert jnp.array_equal(loaded_logs["carry"], data["carry"])

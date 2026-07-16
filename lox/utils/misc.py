@@ -82,6 +82,11 @@ def get_path(path: str, key: Key) -> str:
     """
     Constructs a new path by appending a key to an existing path.
 
+    The folder name is derived by packing the key's raw words into a single integer
+    (each word shifted into its own 32-bit slot), which is a bijection -- distinct keys
+    always produce distinct folder names. For simple keys made with ``jax.random.key(n)``
+    (whose raw data is ``[0, n]``), this reduces to exactly ``str(n)``.
+
     Args:
         path (str): The base path.
         key (Key): The key to append to the path.
@@ -89,6 +94,8 @@ def get_path(path: str, key: Key) -> str:
         str: The new constructed path.
     """
     key_data = jax.random.key_data(key)
-    folder_name = str(int(f"{key_data[0]}{key_data[1]}"))
-    path = path + "/" + folder_name
+    combined = 0
+    for x in key_data.flatten():
+        combined = (combined << 32) | int(x)
+    path = path + "/" + str(combined)
     return path

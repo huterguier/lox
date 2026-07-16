@@ -39,9 +39,10 @@ def save_callback(
         with open(file, "wb") as f:
             pickle.dump(v, f)
 
-    def save_data(path, v):
+    def save_data(path, data):
+        os.makedirs(path, exist_ok=True)
         for k, v in data.items():
-            file = path + f"/{k}.pkl"
+            file = os.path.join(path, f"{k}.pkl")
             dir, _ = os.path.split(file)
             if not os.path.exists(dir):
                 os.makedirs(dir)
@@ -67,9 +68,9 @@ def save_callback(
             )
             leaves, treedef = jax.tree.flatten(data_flat)
             datas = [treedef.unflatten(leaf_tuple) for leaf_tuple in zip(*leaves)]
-            for k, data in enumerate(datas):
-                path_k = get_path(path, keys[k])
-                save_data(path_k, data)
+            for i, data in enumerate(datas):
+                path_i = get_path(path, keys[i])
+                save_data(path_i, data)
         else:
             path = get_path(path, key)
             save_data(path, data)
@@ -98,10 +99,15 @@ def save(
 
 def load_callback(
     path: StringArray | str,
-    argnames: Optional[Iterable[str]] = None,
+    argnames: Optional[str | Iterable[str]] = None,
     key: Optional[Key] = None,
 ) -> dict[str, Any]:
+    if isinstance(argnames, str):
+        argnames = (argnames,)
+
     def load_data(path):
+        if not os.path.isdir(path):
+            raise FileNotFoundError(f"No such directory: {path!r}")
         data = {}
         if argnames is None:
             for root, _, files in os.walk(path):
@@ -110,12 +116,12 @@ def load_callback(
                     filename = os.path.normpath(os.path.join(dir, file))
                     if filename.endswith(".pkl"):
                         argname = filename[:-4]
-                        file_path = path + f"/{filename}"
+                        file_path = os.path.join(path, filename)
                         with open(file_path, "rb") as f:
                             data[argname] = pickle.load(f)
         else:
             for argname in argnames:
-                file_path = path + f"/{argname}.pkl"
+                file_path = os.path.join(path, f"{argname}.pkl")
                 with open(file_path, "rb") as f:
                     data[argname] = pickle.load(f)
         return data
@@ -144,7 +150,7 @@ def load(
     path: StringArray | str,
     key: Optional[Key] = None,
     result_shape_dtypes: Any = None,
-    argnames: Optional[Iterable[str]] = None,
+    argnames: Optional[str | Iterable[str]] = None,
 ) -> dict[str, Any]:
     """
     Load data from a specified path. Each file in the directory is loaded into a dictionary with the filename (without extension) as the key.
@@ -152,7 +158,7 @@ def load(
     Args:
       path (StringArray): The path from which the data will be loaded.
       result_shape_dtypes (Any, optional): The expected shape and dtype of the loaded data.
-      argnames (Iterable[str], optional): Specific argument names to load. If None, all files in the directory are loaded.
+      argnames (str | Iterable[str], optional): Specific argument name(s) to load. If None, all files in the directory are loaded.
       key (jax.Array, optional): An optional key to differentiate data when loading.
     Returns:
         dict[str, Any]: The loaded data.
