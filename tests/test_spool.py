@@ -30,6 +30,48 @@ functions = [
 ]
 
 
+def f_scan_carry(x):
+    def step(carry, x):
+        carry = carry + x
+        lox.log({"c": carry})
+        return carry, carry
+
+    return jax.lax.scan(step, 0.0, x)[0]
+
+
+def f_scan_pytree(x):
+    def step(carry, x):
+        carry = carry + x
+        lox.log({"c": carry})
+        return carry, {"a": carry, "b": (carry * 2, carry * 3)}
+
+    return jax.lax.scan(step, 0.0, x)
+
+
+def f_scan_cond(x):
+    branch = jax.jit(f_scan_carry)
+    return jax.lax.cond(x.sum() > 0, branch, branch, x)
+
+
+def f_scan_nested(x):
+    def outer(carry, row):
+        inner = f_scan_carry(row)
+        lox.log({"outer": inner})
+        return carry + inner, inner
+
+    return jax.lax.scan(outer, 0.0, x)
+
+
+# scan bodies whose log outputs must survive an enclosing transformation
+scan_functions = [
+    (f_scan_pytree, (4,), {"c": (4,)}),
+    (jax.grad(f_scan_carry), (4,), {"c": (4,)}),
+    (jax.vmap(f_scan_carry), (3, 4), {"c": (12, 1)}),
+    (f_scan_cond, (4,), {"c": (4,)}),
+    (f_scan_nested, (3, 4), {"c": (12,), "outer": (3,)}),
+]
+
+
 @pytest.fixture(params=[0, 1, 2])
 def key(request):
     return jax.random.key(request.param)
@@ -148,3 +190,11 @@ def test_spool_argnames_and_tags_is_and():
     x = jnp.ones(4)
     _, logs = lox.spool(_f_ab_train_c_eval, argnames=["a"], tags=["train"])(x)
     assert set(logs.keys()) == {"a"}
+
+
+@pytest.mark.parametrize("f, shape, expected_shapes", scan_functions)
+def test_spool_scan_variants(f, shape, expected_shapes):
+    x = jnp.ones(shape)
+    y_spooled, logs = lox.spool(f)(x)
+    assert jax.tree.all(jax.tree.map(jnp.allclose, y_spooled, f(x)))
+    assert {k: tuple(v.shape) for k, v in logs.items()} == expected_shapes
