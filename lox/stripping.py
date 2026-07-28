@@ -101,8 +101,10 @@ def strip_jaxpr(
             logs_in = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
             logs_out = jax.tree.unflatten(eqn.params["structure"], eqn.outvars)
             to_strip = select_logs(logs_in, eqn.params["tags"], argnames, tags)
-            logs_in = logs_in.filter(lambda k, _: k not in to_strip)
-            logs_out = logs_out.filter(lambda k, _: k not in to_strip)
+            logs_in = logs_in.filter(lambda k, _, to_strip=to_strip: k not in to_strip)
+            logs_out = logs_out.filter(
+                lambda k, _, to_strip=to_strip: k not in to_strip
+            )
             new_invars, new_structure = jax.tree.flatten(logs_in)
             new_eqns.append(
                 eqn.replace(
