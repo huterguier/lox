@@ -54,7 +54,7 @@ def test_vmap_save_load(tmp_path, logs):
 
 
 def test_save_invalid_path(logs):
-    with pytest.raises(Exception):
+    with pytest.raises(OSError):
         save(logs, "/invalid_path/test_logs.pkl")
 
 
