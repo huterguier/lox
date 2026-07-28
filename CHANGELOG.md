@@ -6,6 +6,39 @@ version carries breaking changes.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-28
+
+### Added
+- Support for JAX 0.11, which replaced `scan`'s `num_consts`/`num_carry` parameters with the
+  `ft_in`/`ft_out` FlatTrees. `spool` now extends `ft_out` alongside the log outputs it appends to
+  a scan; without it every spooled `scan` failed on 0.11. JAX 0.11 requires Python 3.12, so the CI
+  matrix pairs it with 3.12 only.
+- Tests covering `spool` of a `scan` under `grad`, `vmap`, `cond`, nesting, and a non-trivial `ys`
+  pytree — combinations that were previously untested on every JAX version.
+
+### Fixed
+- `lox.save(..., key=...)` with a batched key wrote the full, unsharded data into *every* per-key
+  folder instead of that key's shard: the inner `save_data` took its payload as `v` but iterated
+  the enclosing `data`, so its argument was ignored.
+- `lox.save`/`lox.load` could silently mix unrelated runs. Folder names came from concatenating
+  the key's raw words as text, so distinct keys collided — raw `[1, 23]` and `[12, 3]` both
+  produced `123`. Words are now packed into separate 32-bit slots, which is a bijection. Keys made
+  with `jax.random.key(n)` still map to `n`, so existing saved data is unaffected.
+- `lox.load` on a path that is not a directory now raises `FileNotFoundError` naming the path,
+  instead of an opaque error from the first file open.
+- `lox.save` creates its target directory instead of failing when it does not exist.
+- Paths are built with `os.path.join` rather than string concatenation.
+- `ConsoleLogger` no longer swallows `KeyboardInterrupt`/`SystemExit` while rendering: the guard
+  around log stacking caught bare exceptions, so Ctrl-C during a live display could be discarded.
+
+### Changed
+- `argnames` in `lox.load` accepts a bare string as a single name, matching the handling that
+  `spool`/`tap`/`strip`/`keep` gained in 0.3.0.
+- `MultiLogger.callback` raises instead of silently dropping loggers when it is handed a state
+  whose logger count does not match its own.
+- Tooling: `ruff` replaces `black` and `isort` for linting and formatting, and CI now enforces
+  `ruff check`/`ruff format` on every branch.
+
 ## [0.3.0] - 2026-07-09
 
 ### Added
