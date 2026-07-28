@@ -5,6 +5,8 @@ import jax.numpy as jnp
 
 from lox.utils.typing import Array
 
+DEFAULT_PADDING = jnp.uint8(255)
+
 
 @jax.tree_util.register_dataclass
 @dataclass
@@ -12,7 +14,7 @@ class StringArray:
     chars: Array
     padding: Array
 
-    def __init__(self, chars: Array, padding: Array = jnp.uint8(255)):
+    def __init__(self, chars: Array, padding: Array = DEFAULT_PADDING):
         self.chars = chars
         self.padding = padding
 
@@ -41,7 +43,7 @@ class StringArray:
 
     @classmethod
     def from_str(
-        cls, s: str, length: int = 1024, padding: Array = jnp.uint8(255)
+        cls, s: str, length: int = 1024, padding: Array = DEFAULT_PADDING
     ) -> "StringArray":
         chars = jnp.full((length,), padding, dtype=jax.numpy.uint8)
         for i, c in enumerate(s):
