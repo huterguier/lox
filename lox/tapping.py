@@ -153,7 +153,7 @@ def tap_jaxpr(
             structure = eqn.params["structure"]
             logs = jax.tree.unflatten(structure, eqn.invars)
             logs = select_logs(logs, eqn.params["tags"], argnames, tags)
-            logs_avals = jax.tree.map(lambda l: l.aval, logs)
+            logs_avals = jax.tree.map(lambda x: x.aval, logs)
             logs_avals_flat, structure_avals = jax.tree.flatten(logs_avals)
             if logs_avals:
                 print_jaxpr = jax.make_jaxpr(

@@ -202,7 +202,7 @@ def spool_jaxpr(
         if not logs_jaxpr:
             return eqn, logdict({}), []
 
-        logs_jaxpr_avals = jax.tree_util.tree_map(lambda l: l.aval, logs_jaxpr)
+        logs_jaxpr_avals = jax.tree_util.tree_map(lambda x: x.aval, logs_jaxpr)
         logs_scan_avals = jax.tree_util.tree_map(
             lambda aval: ShapedArray((eqn.params["length"],) + aval.shape, aval.dtype),
             logs_jaxpr_avals,
@@ -219,7 +219,7 @@ def spool_jaxpr(
 
         def unstack(logs_scan):
             return jax.tree.map(
-                lambda l: l.reshape((-1,) + l.shape[2:]),
+                lambda x: x.reshape((-1,) + x.shape[2:]),
                 logs_scan,
             )
 
@@ -324,7 +324,7 @@ def spool_jaxpr(
         )
         if logs_jaxpr:
             logs_eqn = jax.tree.map(
-                lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_jaxpr
+                lambda x: Var(aval=ShapedArray(x.aval.shape, x.aval.dtype)), logs_jaxpr
             )
             const_literals = [
                 Literal(c, jax.core.get_aval(c)) for c in inner_closed.consts
@@ -351,7 +351,7 @@ def spool_jaxpr(
             return eqn, logdict({}), []
 
         logs_eqn = jax.tree.map(
-            lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)), logs_call_jaxpr
+            lambda x: Var(aval=ShapedArray(x.aval.shape, x.aval.dtype)), logs_call_jaxpr
         )
         new_eqn = eqn.replace(
             outvars=[*eqn.outvars, *jax.tree_util.tree_leaves(logs_eqn)],
@@ -367,7 +367,7 @@ def spool_jaxpr(
             return eqn, logdict({}), []
 
         logs_eqn = jax.tree.map(
-            lambda l: Var(aval=ShapedArray(l.aval.shape, l.aval.dtype)),
+            lambda x: Var(aval=ShapedArray(x.aval.shape, x.aval.dtype)),
             logs_remat_jaxpr,
         )
         new_eqn = eqn.replace(
