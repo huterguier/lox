@@ -30,11 +30,11 @@ pytest tests
 ```
 
 ### 3. Code Quality
-We use `black` and `isort` for formatting. Please run them before committing.
+We use `ruff` for linting and formatting. Please run it before committing.
 
 ```bash
-black .
-isort .
+ruff check --fix .
+ruff format .
 ```
 
 ## Pull Request Process
