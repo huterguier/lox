@@ -1,4 +1,5 @@
-from typing import Any, Callable, Iterable, Optional
+from collections.abc import Callable, Iterable
+from typing import Any
 
 import jax
 from jax import Array as Key
@@ -47,8 +48,8 @@ def flatten(fun: Callable, structure: Any) -> Callable:
 def select_logs(
     logs: "logdict",
     eqn_tags: Iterable[str],
-    argnames: Optional[str | Iterable[str]],
-    tags: Optional[str | Iterable[str]],
+    argnames: str | Iterable[str] | None,
+    tags: str | Iterable[str] | None,
 ) -> "logdict":
     """
     Selects the subset of ``logs`` matching ``argnames``/``tags``.

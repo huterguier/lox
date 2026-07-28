@@ -1,5 +1,6 @@
+from collections.abc import Callable, Hashable, Iterable
 from functools import wraps
-from typing import Any, Callable, Hashable, Iterable
+from typing import Any
 
 import jax
 import jax._src.ad_checkpoint
@@ -93,6 +94,7 @@ def make_tapped_jaxpr(
     Returns:
         Callable[..., ClosedJaxpr | tuple[ClosedJaxpr, Any]]: A wrapped function that returns the jaxpr and logs.
     """
+
     def wrapped(*args, **kwargs):
         closed_jaxpr, out_shape = jax.make_jaxpr(
             fun,
@@ -147,7 +149,6 @@ def tap_jaxpr(
     modified = False
 
     for eqn in jaxpr.eqns:
-
         if eqn.primitive == lox_p:
             structure = eqn.params["structure"]
             logs = jax.tree.unflatten(structure, eqn.invars)
@@ -159,9 +160,11 @@ def tap_jaxpr(
                     wrapped_callback,
                     static_argnums=(0),
                 )(structure_avals, *logs_avals_flat)
-                new_eqns.append(print_jaxpr.jaxpr.eqns[0].replace(
-                    invars=jax.tree.leaves(logs),
-                ))
+                new_eqns.append(
+                    print_jaxpr.jaxpr.eqns[0].replace(
+                        invars=jax.tree.leaves(logs),
+                    )
+                )
                 modified = True
             new_eqns.append(eqn)
 
@@ -169,10 +172,12 @@ def tap_jaxpr(
             c = eqn.params["jaxpr"]
             new_inner, m = tap_jaxpr(c.jaxpr, callback, argnames)
             if m:
-                new_eqns.append(eqn.replace(
-                    primitive=jax.extend.core.primitives.call_p,
-                    params={"call_jaxpr": new_inner},
-                ))
+                new_eqns.append(
+                    eqn.replace(
+                        primitive=jax.extend.core.primitives.call_p,
+                        params={"call_jaxpr": new_inner},
+                    )
+                )
                 modified = True
             else:
                 new_eqns.append(eqn)
@@ -181,9 +186,14 @@ def tap_jaxpr(
             c = eqn.params["jaxpr"]
             new_inner, m = tap_jaxpr(c.jaxpr, callback, argnames)
             modified |= m
-            new_eqns.append(eqn.replace(params={**eqn.params,
-                "jaxpr": ClosedJaxpr(new_inner, c.consts),
-            }))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "jaxpr": ClosedJaxpr(new_inner, c.consts),
+                    }
+                )
+            )
 
         elif eqn.primitive == jax.extend.core.primitives.cond_p:
             new_branches = []
@@ -191,33 +201,53 @@ def tap_jaxpr(
                 new_b, m = tap_jaxpr(b.jaxpr, callback, argnames)
                 modified |= m
                 new_branches.append(ClosedJaxpr(new_b, b.consts))
-            new_eqns.append(eqn.replace(params={**eqn.params,
-                "branches": tuple(new_branches),
-            }))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "branches": tuple(new_branches),
+                    }
+                )
+            )
 
         elif eqn.primitive == jax.extend.core.primitives.while_p:
             c, b = eqn.params["cond_jaxpr"], eqn.params["body_jaxpr"]
             new_c, mc = tap_jaxpr(c.jaxpr, callback, argnames)
             new_b, mb = tap_jaxpr(b.jaxpr, callback, argnames)
             modified |= mc | mb
-            new_eqns.append(eqn.replace(params={**eqn.params,
-                "cond_jaxpr": ClosedJaxpr(new_c, c.consts),
-                "body_jaxpr": ClosedJaxpr(new_b, b.consts),
-            }))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "cond_jaxpr": ClosedJaxpr(new_c, c.consts),
+                        "body_jaxpr": ClosedJaxpr(new_b, b.consts),
+                    }
+                )
+            )
 
         elif eqn.primitive == jax.extend.core.primitives.call_p:
             new_call, m = tap_jaxpr(eqn.params["call_jaxpr"], callback, argnames)
             modified |= m
-            new_eqns.append(eqn.replace(params={**eqn.params,
-                "call_jaxpr": new_call,
-            }))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "call_jaxpr": new_call,
+                    }
+                )
+            )
 
         elif eqn.primitive == jax._src.ad_checkpoint.remat_p:
             new_remat, m = tap_jaxpr(eqn.params["jaxpr"], callback, argnames)
             modified |= m
-            new_eqns.append(eqn.replace(params={**eqn.params,
-                "jaxpr": new_remat,
-            }))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "jaxpr": new_remat,
+                    }
+                )
+            )
 
         else:
             new_eqns.append(eqn)

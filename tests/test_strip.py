@@ -51,9 +51,9 @@ def test_strip_tags():
 
 def test_strip_argnames_and_tags_is_and():
     x = jnp.ones(4)
-    _, logs = lox.spool(
-        lox.strip(_f_ab_train_c_eval, argnames=["a"], tags=["train"])
-    )(x)
+    _, logs = lox.spool(lox.strip(_f_ab_train_c_eval, argnames=["a"], tags=["train"]))(
+        x
+    )
     # only "a" matches both argnames and tags; "b" is tagged but not named,
     # "c" is named-excluded and not tagged -- neither should be stripped.
     assert set(logs.keys()) == {"b", "c"}

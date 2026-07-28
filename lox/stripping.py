@@ -1,5 +1,5 @@
 import functools
-from typing import Callable, Hashable, Iterable
+from collections.abc import Callable, Hashable, Iterable
 
 import jax
 import jax._src.ad_checkpoint
@@ -77,7 +77,9 @@ def strip(
         new_jaxpr = strip_jaxpr(closed_jaxpr.jaxpr, argnames=argnames, tags=tags)
         closed_jaxpr = ClosedJaxpr(new_jaxpr, closed_jaxpr.consts)
         dynamic_args_flat = tuple(arg for arg in args_flat if not is_hashable(arg))
-        out_flat = jax.core.eval_jaxpr(closed_jaxpr.jaxpr, closed_jaxpr.literals, *dynamic_args_flat)
+        out_flat = jax.core.eval_jaxpr(
+            closed_jaxpr.jaxpr, closed_jaxpr.literals, *dynamic_args_flat
+        )
         out = jax.tree_util.tree_unflatten(
             jax.tree_util.tree_structure(out_shape), out_flat
         )
@@ -102,40 +104,84 @@ def strip_jaxpr(
             logs_in = logs_in.filter(lambda k, _: k not in to_strip)
             logs_out = logs_out.filter(lambda k, _: k not in to_strip)
             new_invars, new_structure = jax.tree.flatten(logs_in)
-            new_eqns.append(eqn.replace(
-                invars=new_invars,
-                outvars=jax.tree.leaves(logs_out),
-                params={**eqn.params, "structure": new_structure},
-            ))
+            new_eqns.append(
+                eqn.replace(
+                    invars=new_invars,
+                    outvars=jax.tree.leaves(logs_out),
+                    params={**eqn.params, "structure": new_structure},
+                )
+            )
         elif eqn.primitive == jax.extend.core.primitives.scan_p:
             c = eqn.params["jaxpr"]
-            new_eqns.append(eqn.replace(params={**eqn.params,
-                "jaxpr": ClosedJaxpr(strip_jaxpr(c.jaxpr, argnames, tags), c.consts),
-            }))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "jaxpr": ClosedJaxpr(
+                            strip_jaxpr(c.jaxpr, argnames, tags), c.consts
+                        ),
+                    }
+                )
+            )
         elif eqn.primitive == jax.extend.core.primitives.cond_p:
-            new_eqns.append(eqn.replace(params={**eqn.params, "branches": tuple(
-                ClosedJaxpr(strip_jaxpr(b.jaxpr, argnames, tags), b.consts)
-                for b in eqn.params["branches"]
-            )}))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "branches": tuple(
+                            ClosedJaxpr(strip_jaxpr(b.jaxpr, argnames, tags), b.consts)
+                            for b in eqn.params["branches"]
+                        ),
+                    }
+                )
+            )
         elif eqn.primitive == jax.extend.core.primitives.while_p:
             c, b = eqn.params["cond_jaxpr"], eqn.params["body_jaxpr"]
-            new_eqns.append(eqn.replace(params={**eqn.params,
-                "cond_jaxpr": ClosedJaxpr(strip_jaxpr(c.jaxpr, argnames, tags), c.consts),
-                "body_jaxpr": ClosedJaxpr(strip_jaxpr(b.jaxpr, argnames, tags), b.consts),
-            }))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "cond_jaxpr": ClosedJaxpr(
+                            strip_jaxpr(c.jaxpr, argnames, tags), c.consts
+                        ),
+                        "body_jaxpr": ClosedJaxpr(
+                            strip_jaxpr(b.jaxpr, argnames, tags), b.consts
+                        ),
+                    }
+                )
+            )
         elif eqn.primitive == jax.extend.core.primitives.jit_p:
             c = eqn.params["jaxpr"]
-            new_eqns.append(eqn.replace(params={**eqn.params,
-                "jaxpr": ClosedJaxpr(strip_jaxpr(c.jaxpr, argnames, tags), c.consts),
-            }))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "jaxpr": ClosedJaxpr(
+                            strip_jaxpr(c.jaxpr, argnames, tags), c.consts
+                        ),
+                    }
+                )
+            )
         elif eqn.primitive == jax.extend.core.primitives.call_p:
-            new_eqns.append(eqn.replace(params={**eqn.params,
-                "call_jaxpr": strip_jaxpr(eqn.params["call_jaxpr"], argnames, tags),
-            }))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "call_jaxpr": strip_jaxpr(
+                            eqn.params["call_jaxpr"], argnames, tags
+                        ),
+                    }
+                )
+            )
         elif eqn.primitive == jax._src.ad_checkpoint.remat_p:
-            new_eqns.append(eqn.replace(params={**eqn.params,
-                "jaxpr": strip_jaxpr(eqn.params["jaxpr"], argnames, tags),
-            }))
+            new_eqns.append(
+                eqn.replace(
+                    params={
+                        **eqn.params,
+                        "jaxpr": strip_jaxpr(eqn.params["jaxpr"], argnames, tags),
+                    }
+                )
+            )
         else:
             new_eqns.append(eqn)
     return jaxpr.replace(eqns=new_eqns)

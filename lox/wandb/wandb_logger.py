@@ -1,5 +1,5 @@
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Optional, Sequence
 
 import jax
 
@@ -36,7 +36,7 @@ class WandbLogger(Logger[WandbLoggerState]):
         self,
         f: Callable,
         logger_state: WandbLoggerState,
-        argnames: Optional[Sequence[str]] = None,
+        argnames: Sequence[str] | None = None,
         prefix: str = "",
     ) -> Callable:
         def callback(logs: logdict):

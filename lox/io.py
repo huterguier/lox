@@ -1,7 +1,8 @@
 import os
 import pickle
+from collections.abc import Iterable
 from functools import partial
-from typing import Any, Iterable, Optional
+from typing import Any
 
 import jax
 import jax.experimental
@@ -16,7 +17,7 @@ def save_callback(
     data: dict[str, Any],
     path: StringArray | str,
     mode: str = "a",
-    key: Optional[Key] = None,
+    key: Key | None = None,
 ):
     def append(file, v):
         with open(file, "rb") as f:
@@ -82,7 +83,7 @@ def save(
     data: dict[str, Any],
     path: StringArray | str,
     mode: str = "a",
-    key: Optional[jax.Array] = None,
+    key: jax.Array | None = None,
 ):
     """
     Save data to a specified path using a callback function. Each entry in the data dictionary is saved as a separate file with the key as the filename.
@@ -99,8 +100,8 @@ def save(
 
 def load_callback(
     path: StringArray | str,
-    argnames: Optional[str | Iterable[str]] = None,
-    key: Optional[Key] = None,
+    argnames: str | Iterable[str] | None = None,
+    key: Key | None = None,
 ) -> dict[str, Any]:
     if isinstance(argnames, str):
         argnames = (argnames,)
@@ -148,9 +149,9 @@ def load_callback(
 
 def load(
     path: StringArray | str,
-    key: Optional[Key] = None,
+    key: Key | None = None,
     result_shape_dtypes: Any = None,
-    argnames: Optional[str | Iterable[str]] = None,
+    argnames: str | Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """
     Load data from a specified path. Each file in the directory is loaded into a dictionary with the filename (without extension) as the key.
