@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import pytest
 
 import lox
-from lox import logdict
 
 
 @pytest.fixture
@@ -12,6 +11,7 @@ def scan_logs():
         def step(carry, x):
             lox.log({"x": x, "carry": carry})
             return carry + x, carry
+
         return jax.lax.scan(step, 0.0, xs)
 
     xs = jnp.arange(10, dtype=float)

@@ -1,4 +1,5 @@
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -60,7 +61,10 @@ class logdict(dict[str, Any]):
         """
         if mode == "mean":
             return logdict(
-                {k: jnp.mean(v, keepdims=True) if len(v) > 1 else v for k, v in self.items()}
+                {
+                    k: jnp.mean(v, keepdims=True) if len(v) > 1 else v
+                    for k, v in self.items()
+                }
             )
         if mode == "first":
             return logdict({k: v[:1] for k, v in self.items()})
@@ -70,9 +74,9 @@ class logdict(dict[str, Any]):
 
     def _slice(
         self,
-        start: Optional[int] = None,
-        stop: Optional[int] = None,
-        step: Optional[int] = None,
+        start: int | None = None,
+        stop: int | None = None,
+        step: int | None = None,
     ) -> "logdict":
         return logdict(
             {k: jax.tree.map(lambda x: x[start:stop:step], v) for k, v in self.items()}

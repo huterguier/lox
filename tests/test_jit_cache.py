@@ -6,9 +6,6 @@ tap_jaxpr, and strip_jaxpr mutated these shared objects in place, corrupting
 the cache and causing errors on subsequent calls.
 """
 
-import contextlib
-import io
-
 import jax
 import jax.numpy as jnp
 

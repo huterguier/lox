@@ -4,18 +4,28 @@ import io
 import jax
 import jax.numpy as jnp
 import pytest
-from functions import f_add, f_call, f_cond, f_grad, f_id, f_jit, f_remat, f_scan, f_while
+from functions import (
+    f_add,
+    f_call,
+    f_cond,
+    f_grad,
+    f_id,
+    f_jit,
+    f_remat,
+    f_scan,
+    f_while,
+)
 
 import lox
 
 functions = [
-    (f_id,    {"x"}),
-    (f_add,   {"x", "z"}),
-    (f_scan,  {"carry", "x"}),
-    (f_call,  {"x"}),
-    (f_jit,   {"x"}),
-    (f_cond,  {"branch", "x"}),
-    (f_grad,  {"x"}),
+    (f_id, {"x"}),
+    (f_add, {"x", "z"}),
+    (f_scan, {"carry", "x"}),
+    (f_call, {"x"}),
+    (f_jit, {"x"}),
+    (f_cond, {"branch", "x"}),
+    (f_grad, {"x"}),
     (f_remat, {"x"}),
 ]
 

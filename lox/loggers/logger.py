@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Callable, Generic, Iterable, TypeVar
+from typing import Generic, TypeVar
 
 import jax
 
@@ -21,7 +22,6 @@ LoggerStateT = TypeVar("LoggerStateT", bound=LoggerState)
 
 
 class Logger(Generic[LoggerStateT], ABC):
-
     @abstractmethod
     def init(self, *args, **kwargs) -> LoggerStateT:
         pass

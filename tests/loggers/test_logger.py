@@ -14,7 +14,6 @@ functions = [
 
 
 class TestLogger(ABC):
-
     @abstractmethod
     def logger(self) -> Logger:
         pass

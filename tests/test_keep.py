@@ -53,9 +53,7 @@ def test_keep_tags():
 
 def test_keep_argnames_and_tags_is_and():
     x = jnp.ones(4)
-    _, logs = lox.spool(
-        lox.keep(_f_ab_train_c_eval, argnames=["a"], tags=["train"])
-    )(x)
+    _, logs = lox.spool(lox.keep(_f_ab_train_c_eval, argnames=["a"], tags=["train"]))(x)
     assert set(logs.keys()) == {"a"}
 
 

@@ -25,13 +25,13 @@ def test_save_load(tmp_path, logs):
     for key in logs:
         if isinstance(logs[key], dict):
             for subkey in logs[key]:
-                assert jnp.array_equal(
-                    logs[key][subkey], loaded_logs[key][subkey]
-                ), f"Mismatch in nested key: {key}->{subkey}"
+                assert jnp.array_equal(logs[key][subkey], loaded_logs[key][subkey]), (
+                    f"Mismatch in nested key: {key}->{subkey}"
+                )
         else:
-            assert jnp.array_equal(
-                logs[key], loaded_logs[key]
-            ), f"Mismatch in key: {key}"
+            assert jnp.array_equal(logs[key], loaded_logs[key]), (
+                f"Mismatch in key: {key}"
+            )
 
 
 def test_vmap_save_load(tmp_path, logs):
@@ -44,13 +44,13 @@ def test_vmap_save_load(tmp_path, logs):
     for key in logs:
         if isinstance(logs[key], dict):
             for subkey in logs[key]:
-                assert jnp.array_equal(
-                    logs[key][subkey], loaded_logs[key][subkey]
-                ), f"Mismatch in nested key: {key}->{subkey}"
+                assert jnp.array_equal(logs[key][subkey], loaded_logs[key][subkey]), (
+                    f"Mismatch in nested key: {key}->{subkey}"
+                )
         else:
-            assert jnp.array_equal(
-                logs[key], loaded_logs[key]
-            ), f"Mismatch in key: {key}"
+            assert jnp.array_equal(logs[key], loaded_logs[key]), (
+                f"Mismatch in key: {key}"
+            )
 
 
 def test_save_invalid_path(logs):

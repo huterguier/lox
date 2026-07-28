@@ -4,7 +4,6 @@ from lox.matplotlib.matplotlib_logger import MatplotlibLogger
 
 
 class ImshowLogger(MatplotlibLogger):
-
     def __init__(self, argname: str):
         self.argname = argname
 
