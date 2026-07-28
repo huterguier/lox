@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 
+import jax
 import pytest
-from functions import *
+from functions import f_add, f_id, f_scan
 
 import lox
 from lox.loggers import Logger
