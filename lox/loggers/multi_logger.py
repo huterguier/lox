@@ -26,6 +26,6 @@ class MultiLogger(Logger[MultiLoggerState]):
 
     def callback(self, logger_state: MultiLoggerState, logs: logdict):
         for sub_logger, sub_logger_state in zip(
-            self.loggers, logger_state.logger_states
+            self.loggers, logger_state.logger_states, strict=True
         ):
             sub_logger.callback(sub_logger_state, logs)

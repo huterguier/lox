@@ -264,7 +264,7 @@ def spool_jaxpr(
         # Rebuild each branch with log outvars in sorted key order,
         # injecting fill equations for any missing keys.
         unified_branches = []
-        for branch, logs_branch in zip(new_branches, logs_branches):
+        for branch, logs_branch in zip(new_branches, logs_branches, strict=True):
             extra_eqns = []
             ordered_vars = []
             for key in all_keys:
