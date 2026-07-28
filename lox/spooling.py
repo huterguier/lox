@@ -216,11 +216,9 @@ def spool_jaxpr(
         if "ft_out" in new_params:
             from jax._src import flattree as ft
 
-            carry_ft, ys_ft = new_params["ft_out"].elts
+            carry_ft, ys_ft = new_params["ft_out"].unpack()
             n_extra = len(jax.tree.leaves(logs_scan))
-            new_params["ft_out"] = ft.FTTuple(
-                carry_ft, ft.FTTuple(ys_ft, ft.nones(n_extra))
-            )
+            new_params["ft_out"] = ft.pack((carry_ft, (ys_ft, ft.nones(n_extra))))
 
         new_eqn = eqn.replace(
             outvars=[*eqn.outvars, *jax.tree.leaves(logs_scan)],
