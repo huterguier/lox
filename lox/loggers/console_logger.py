@@ -65,7 +65,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         )
         try:
             logss = jax.tree.map(lambda *x: jnp.stack(x), *list(self.logss.values()))
-        except:
+        except Exception:
             return
 
         for k, v in logss.items():
