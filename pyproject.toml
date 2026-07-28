@@ -32,8 +32,6 @@ neptune = [
   "neptune-client>=0.18.3",
 ]
 dev = [
-  "black",
-  "isort",
   "ruff",
   "pytest",
   "pytest-cov",
