@@ -209,12 +209,22 @@ def spool_jaxpr(
         )
         logs_scan = jax.tree.map(lambda aval: Var(aval=aval), logs_scan_avals)
 
+        new_params = {
+            **eqn.params,
+            "jaxpr": ClosedJaxpr(new_inner_jaxpr, inner_closed.consts),
+        }
+        if "ft_out" in new_params:
+            from jax._src import flattree as ft
+
+            carry_ft, ys_ft = new_params["ft_out"].elts
+            n_extra = len(jax.tree.leaves(logs_scan))
+            new_params["ft_out"] = ft.FTTuple(
+                carry_ft, ft.FTTuple(ys_ft, ft.nones(n_extra))
+            )
+
         new_eqn = eqn.replace(
             outvars=[*eqn.outvars, *jax.tree.leaves(logs_scan)],
-            params={
-                **eqn.params,
-                "jaxpr": ClosedJaxpr(new_inner_jaxpr, inner_closed.consts),
-            },
+            params=new_params,
         )
 
         def unstack(logs_scan):
