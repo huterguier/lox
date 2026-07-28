@@ -75,7 +75,7 @@ def log(run: WandbRun, logs: logdict):
             if leaves:
                 assert all([len(leaf) == len(leaves[0]) for leaf in leaves])
                 for i in range(len(leaves[0])):
-                    data = flatten(jax.tree.map(lambda x: x[i], logs))
+                    data = flatten(jax.tree.map(lambda x, i=i: x[i], logs))
                     run.log(data)
 
     jax.debug.callback(callback, ordered=True, id=run.id, logs=logs)

@@ -104,8 +104,8 @@ def keep_jaxpr(
             logs_in = jax.tree.unflatten(eqn.params["structure"], eqn.invars)
             logs_out = jax.tree.unflatten(eqn.params["structure"], eqn.outvars)
             to_keep = select_logs(logs_in, eqn.params["tags"], argnames, tags)
-            logs_in = logs_in.filter(lambda k, _: k in to_keep)
-            logs_out = logs_out.filter(lambda k, _: k in to_keep)
+            logs_in = logs_in.filter(lambda k, _, to_keep=to_keep: k in to_keep)
+            logs_out = logs_out.filter(lambda k, _, to_keep=to_keep: k in to_keep)
             new_invars, new_structure = jax.tree.flatten(logs_in)
             new_eqns.append(
                 eqn.replace(
