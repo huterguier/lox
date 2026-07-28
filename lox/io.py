@@ -68,7 +68,10 @@ def save_callback(
                 lambda x: x.reshape(len(keys), *x.shape[len(key.shape) :]), data
             )
             leaves, treedef = jax.tree.flatten(data_flat)
-            datas = [treedef.unflatten(leaf_tuple) for leaf_tuple in zip(*leaves)]
+            datas = [
+                treedef.unflatten(leaf_tuple)
+                for leaf_tuple in zip(*leaves, strict=True)
+            ]
             for i, data in enumerate(datas):
                 path_i = get_path(path, keys[i])
                 save_data(path_i, data)
