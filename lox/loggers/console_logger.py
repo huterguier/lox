@@ -1,3 +1,4 @@
+import atexit
 from dataclasses import dataclass
 
 import jax
@@ -19,31 +20,48 @@ class ConsoleLoggerState(LoggerState):
     id: jax.Array
 
 
+def _flatten(data: dict, prefix: str = "") -> dict:
+    """Flattens nested log dicts into ``"outer/inner"`` keys."""
+    flat = {}
+    for k, v in data.items():
+        if isinstance(v, dict):
+            flat.update(_flatten(v, f"{prefix}{k}/"))
+        else:
+            flat[f"{prefix}{k}"] = v
+    return flat
+
+
 class ConsoleLogger(Logger[ConsoleLoggerState]):
     """
-    A logger that outputs logs to stdout.
+    A logger that renders logs as a live-updating table on stdout.
+
+    Each call to :meth:`init` registers a new run, and the table shows one row per
+    logged key with the mean and standard deviation over every value logged under
+    that key, pooled across all runs that logged it.
+
+    The reduction is deliberately order-independent. The leading axis of a logged
+    value mixes scan iterations, ``vmap`` lanes and separate ``lox.log`` call sites
+    into a single flat axis, so no element of it can be identified as "the latest"
+    -- only aggregate statistics are meaningful.
+
+    Each call replaces the values of the keys it logs, so the table reflects the
+    most recent call rather than the whole session.
     """
 
     console: Console
     logss: dict[str, logdict]
-    live: Live
+    live: Live | None
 
     def __init__(self):
         self.console = Console()
         self.logss = {}
+        self.live = None
 
     def init(self, key: jax.Array) -> ConsoleLoggerState:
         def callback(key):
             id = jnp.int32(len(self.logss.keys()))
             self.logss[str(id)] = logdict({})
-            table = Table(
-                box=box.ROUNDED,
-                expand=True,
-                show_header=False,
-                border_style="white",
-            )
-            self.live = Live(table, console=self.console, refresh_per_second=4)
-            self.live.start()
+            self._start()
             return id
 
         id = jax.experimental.io_callback(
@@ -54,23 +72,46 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
 
         return ConsoleLoggerState(key=key, id=id)
 
-    def callback(self, logger_state: ConsoleLoggerState, logs: logdict):
-        id = str(logger_state.id)
-        self.logss[id] |= logs
-        table = Table(
+    def _new_table(self) -> Table:
+        return Table(
             box=box.ROUNDED,
             expand=True,
             show_header=False,
             border_style="white",
         )
-        try:
-            logss = jax.tree.map(lambda *x: jnp.stack(x), *list(self.logss.values()))
-        except Exception:
-            return
 
-        for k, v in logss.items():
+    def _start(self) -> None:
+        """Starts the live display, reusing it across runs."""
+        if self.live is None:
+            self.live = Live(
+                self._new_table(), console=self.console, refresh_per_second=4
+            )
+            self.live.start()
+            atexit.register(self.close)
+
+    def close(self) -> None:
+        """Stops the live display and restores the terminal."""
+        if self.live is not None:
+            self.live.stop()
+            self.live = None
+
+    def callback(self, logger_state: ConsoleLoggerState, logs: logdict):
+        id = str(logger_state.id)
+        self.logss.setdefault(id, logdict({}))
+        self.logss[id] |= logdict(_flatten(logs))
+
+        self._start()
+        n_runs = len(self.logss)
+        table = self._new_table()
+        for k in sorted({k for run in self.logss.values() for k in run}):
+            values = [run[k] for run in self.logss.values() if k in run]
+            v = jnp.concatenate([jnp.ravel(value) for value in values])
+            detail = f"n={v.size}"
+            if len(values) < n_runs:
+                detail += f", {len(values)}/{n_runs} runs"
             table.add_row(
                 f"[bold]{k}[/bold]",
-                f"{jnp.mean(v, axis=0)[0]} ± {jnp.std(v, axis=0)[0]}",
+                f"{float(jnp.mean(v)):.4g} ± {float(jnp.std(v)):.4g}",
+                f"[dim]{detail}[/dim]",
             )
         self.live.update(table)
