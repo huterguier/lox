@@ -32,7 +32,9 @@ version carries breaking changes.
   identifies "the latest" value — the table showed element `0` of that flattening, which for a
   spooled `scan` meant the first step's value was displayed and never updated. Rows now report an
   order-independent `mean ± std` instead, and name the shape each run contributed so the discarded
-  structure stays visible.
+  structure stays visible. Values and shapes are right-aligned in their own columns, and the run
+  count moved to the panel subtitle since it is normally the same on every row — rows fall back to
+  carrying their own count when they disagree.
 - `ConsoleLogger` omits the `± std` when a row summarises a single value, where it was always
   `± 0` — the common case of one run logging a scalar. It reappears as soon as there is a second
   value to compare against, including when the two agree and the deviation really is zero.

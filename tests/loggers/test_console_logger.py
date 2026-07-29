@@ -18,9 +18,13 @@ class TestConsoleLogger(TestLogger):
 
 
 def table(logger):
-    """Returns the metrics table, which bars push into a Group."""
-    renderable = logger.live.get_renderable()
+    """Returns the metrics table from inside the panel, past any bars."""
+    renderable = logger.live.get_renderable().renderable
     return renderable.renderables[-1] if isinstance(renderable, Group) else renderable
+
+
+def subtitle(logger) -> str | None:
+    return logger.live.get_renderable().subtitle
 
 
 def rendered(logger) -> dict[str, str]:
@@ -128,15 +132,29 @@ def test_deviation_is_kept_for_a_single_run_with_several_values():
     logger.close()
 
 
-def test_detail_reports_run_count_and_shape():
+def test_shape_is_per_row_and_run_count_is_in_the_subtitle():
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
     logger.callback(state, logdict({"img": jnp.ones((5, 3, 4))}))
-    assert details(logger)["[bold]img[/bold]"] == "[dim]1 run, (5, 3, 4)[/dim]"
+    assert details(logger)["[bold]img[/bold]"] == "(5, 3, 4)"
+    assert subtitle(logger) == "1 run"
 
     state = logger.init(jax.random.key(1))
     logger.callback(state, logdict({"img": jnp.ones((5, 3, 4))}))
-    assert details(logger)["[bold]img[/bold]"] == "[dim]2 runs, each (5, 3, 4)[/dim]"
+    assert details(logger)["[bold]img[/bold]"] == "(5, 3, 4)"
+    assert subtitle(logger) == "2 runs"
+    logger.close()
+
+
+def test_shapes_differ_between_keys_in_one_run():
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"loss": jnp.ones(5), "hist": jnp.ones((5, 4))}))
+    assert details(logger) == {
+        "[bold]hist[/bold]": "(5, 4)",
+        "[bold]loss[/bold]": "(5,)",
+    }
+    assert subtitle(logger) == "1 run"
     logger.close()
 
 
@@ -148,8 +166,11 @@ def test_detail_reports_partial_and_mixed_shapes():
         if seed == 0:
             logs["only_first"] = jnp.ones(2)
         logger.callback(state, logdict(logs))
-    assert details(logger)["[bold]loss[/bold]"] == "[dim]3 runs, mixed shapes[/dim]"
-    assert details(logger)["[bold]only_first[/bold]"] == "[dim]1 run, (2,)[/dim]"
+    # The counts disagree, so no single count can be stated in the subtitle and
+    # each row carries its own instead.
+    assert details(logger)["[bold]loss[/bold]"] == "mixed shapes · 3 runs"
+    assert details(logger)["[bold]only_first[/bold]"] == "(2,) · 1 run"
+    assert subtitle(logger) is None
     logger.close()
 
 
@@ -162,7 +183,8 @@ def test_vmapped_init_yields_one_run_per_lane():
     keys = jnp.stack([jax.random.key(seed) for seed in range(3)])
     states = jax.vmap(logger.init)(keys)
     jax.vmap(lambda state, x: logger.spool(f, state)(x))(states, jnp.ones((3, 5)))
-    assert details(logger)["[bold]v[/bold]"] == "[dim]3 runs, each (1,)[/dim]"
+    assert details(logger)["[bold]v[/bold]"] == "(1,)"
+    assert subtitle(logger) == "3 runs"
     logger.close()
 
 
@@ -174,7 +196,8 @@ def test_shared_state_across_vmap_lanes_is_a_single_run():
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
     logger.spool(jax.vmap(f), state)(jnp.ones((3, 5)))
-    assert details(logger)["[bold]v[/bold]"] == "[dim]1 run, (3, 1)[/dim]"
+    assert details(logger)["[bold]v[/bold]"] == "(3, 1)"
+    assert subtitle(logger) == "1 run"
     logger.close()
 
 
@@ -223,7 +246,7 @@ def test_deeper_nesting_groups_on_the_first_segment():
 
 def bars(logger) -> dict[str, tuple[float, float]]:
     """Maps each rendered bar's key to its ``(completed, total)``."""
-    renderable = logger.live.get_renderable()
+    renderable = logger.live.get_renderable().renderable
     if not isinstance(renderable, Group):
         return {}
     keys, columns, _ = (column._cells for column in renderable.renderables[0].columns)

@@ -7,6 +7,7 @@ import jax.numpy as jnp
 from rich import box
 from rich.console import Console, Group
 from rich.live import Live
+from rich.panel import Panel
 from rich.progress import ProgressBar
 from rich.table import Table
 
@@ -34,6 +35,20 @@ def _sections(keys: list[str]) -> dict[str, list[str]]:
     if not sections[""]:
         del sections[""]
     return sections
+
+
+def _runs(n: int) -> str:
+    return f"{n} run" + ("s" if n != 1 else "")
+
+
+def _shape(values: list) -> str:
+    """Names the shape each run contributed, which differs from key to key."""
+    shapes = {value.shape for value in values}
+    return "mixed shapes" if len(shapes) > 1 else str(shapes.pop())
+
+
+def _shape_and_runs(values: list) -> str:
+    return f"{_shape(values)} · {_runs(len(values))}"
 
 
 def _flatten(data: dict, prefix: str = "") -> dict:
@@ -104,12 +119,11 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         return ConsoleLoggerState(key=key, id=id)
 
     def _new_table(self) -> Table:
-        return Table(
-            box=box.ROUNDED,
-            expand=True,
-            show_header=False,
-            border_style="white",
-        )
+        table = Table(box=None, expand=True, show_header=False, pad_edge=False)
+        table.add_column(no_wrap=True)
+        table.add_column(justify="right", no_wrap=True)
+        table.add_column(justify="right", style="dim", no_wrap=True)
+        return table
 
     def _start(self) -> None:
         """Starts the live display, reusing it across runs."""
@@ -135,6 +149,13 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         table = self._new_table()
         keys = {k for run in self.logss.values() for k in run} - set(self.progress)
         sections = _sections(sorted(keys))
+
+        # The run count is normally the same on every row, so it belongs in the
+        # subtitle rather than repeated down a column. Shapes differ per key and
+        # stay on the row. When the counts disagree -- while runs are still
+        # reporting, or for a key only some of them log -- there is no single
+        # count to state, so each row carries its own instead.
+        counts = {len([run for run in self.logss.values() if k in run]) for k in keys}
         for i, (section, section_keys) in enumerate(sections.items()):
             if section:
                 table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "")
@@ -154,15 +175,30 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                 table.add_row(
                     f"{'  ' if section else ''}[bold]{label}[/bold]",
                     summary,
-                    f"[dim]{self._detail(values)}[/dim]",
+                    _shape(values) if len(counts) == 1 else _shape_and_runs(values),
                     end_section=j == len(section_keys) - 1 and i < len(sections) - 1,
                 )
         bars = self._bars()
-        self.live.update(Group(bars, table) if bars.row_count else table)
+        self.live.update(
+            Panel(
+                Group(bars, table) if bars.row_count else table,
+                box=box.ROUNDED,
+                border_style="white",
+                subtitle=_runs(counts.pop()) if len(counts) == 1 else None,
+                subtitle_align="right",
+            )
+        )
 
     def _bars(self) -> Table:
-        """Renders one bar per configured key, at the mean progress of the runs."""
-        table = Table(box=None, expand=True, show_header=False, padding=(0, 1))
+        """Renders one bar per configured key, at the mean progress of the runs.
+
+        Bars live in their own table so the metric columns are not stretched to
+        accommodate a full-width bar.
+        """
+        table = Table(box=None, expand=True, show_header=False, pad_edge=False)
+        table.add_column(no_wrap=True)
+        table.add_column(ratio=1)
+        table.add_column(justify="right", style="dim", no_wrap=True)
         for k, total in self.progress.items():
             values = [run[k] for run in self.logss.values() if k in run]
             if not values:
@@ -174,15 +210,6 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             table.add_row(
                 f"[bold]{k}[/bold]",
                 ProgressBar(total=total, completed=min(completed, total)),
-                f"[dim]{completed:,.0f}/{total:,.0f}[/dim]",
+                f"{completed:,.0f}/{total:,.0f}",
             )
         return table
-
-    def _detail(self, values: list[jax.Array]) -> str:
-        """Describes how many runs a row covers and what each contributed."""
-        runs = f"{len(values)} run" + ("s" if len(values) != 1 else "")
-        shapes = {value.shape for value in values}
-        if len(shapes) > 1:
-            return f"{runs}, mixed shapes"
-        shape = shapes.pop()
-        return f"{runs}, {'each ' if len(values) > 1 else ''}{shape}"
