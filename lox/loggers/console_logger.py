@@ -65,8 +65,20 @@ def _shape(values: list) -> str:
     return "mixed shapes" if len(shapes) > 1 else str(shapes.pop())
 
 
-def _shape_and_runs(values: list) -> str:
-    return f"{_shape(values)} · {_runs(len(values))}"
+def _detail(values: list, show_runs: bool) -> str:
+    """Describes a row beyond its name, or "" when there is nothing to add.
+
+    A scalar's shape says nothing the value does not already say, so it is left
+    out; anything else -- a vector, an image, differing shapes across runs -- is
+    named, as is the run count when rows disagree about it.
+    """
+    parts = []
+    shape = _shape(values)
+    if shape not in ("(1,)", "()"):
+        parts.append(shape)
+    if show_runs:
+        parts.append(_runs(len(values)))
+    return " · ".join(parts)
 
 
 def _flatten(data: dict, prefix: str = "") -> dict:
@@ -141,11 +153,13 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
     def _new_table(self) -> Table:
         # The spacer column takes all the slack, so a value stays beside its name
         # while the shape lines up with the bar's counter at the right edge.
+        # The detail sits immediately behind the name rather than in a far column,
+        # but keeps a cell of its own so values stay aligned across rows.
         table = Table(box=None, expand=True, show_header=False, pad_edge=False)
         table.add_column(no_wrap=True)
+        table.add_column(no_wrap=True, style="dim")
         table.add_column(justify="right", no_wrap=True, style="bold")
         table.add_column(ratio=1)
-        table.add_column(justify="right", style="dim", no_wrap=True)
         return table
 
     def _start(self) -> None:
@@ -210,8 +224,8 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                 rows.append(
                     (
                         f"{'  ' if section else ''}{label}",
+                        _detail(values, show_runs=len(counts) > 1),
                         summary,
-                        _shape(values) if len(counts) == 1 else _shape_and_runs(values),
                     )
                 )
             rendered.append((section, rows))
@@ -241,9 +255,9 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             return 1
         width = (
             max(len(label) for label, _, _ in rows)
+            + max(len(detail) for _, detail, _ in rows)
             + _VALUE_ALLOWANCE
-            + max(len(detail) for _, _, detail in rows)
-            + 4  # inter-column padding within a sub-table
+            + 3  # inter-column padding within a sub-table
         )
         available = self.console.width - 4  # panel border and padding
         fits = available // (width + _GUTTER)
@@ -277,8 +291,8 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                     if i:
                         table.add_row("", "", "", "")
                     table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "", "")
-                for label, summary, detail in rows:
-                    table.add_row(label, summary, "", detail)
+                for label, detail, summary in rows:
+                    table.add_row(label, detail, summary, "")
             tables.append(table)
         grid.add_row(*tables, *[""] * (n - len(tables)))
         return grid
