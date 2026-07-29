@@ -6,6 +6,28 @@ version carries breaking changes.
 
 ## [Unreleased]
 
+### Added
+- `ConsoleLogger.close()` stops the live display and restores the terminal, and is registered with
+  `atexit` so the cursor is unhidden even if the process exits without calling it.
+- Test coverage for `ConsoleLogger`, which previously had none.
+
+### Fixed
+- `ConsoleLogger` no longer stops updating forever when two runs log different keys. It used to
+  stack all runs into one array to compute `mean ± std`, which requires identical keys across runs;
+  the resulting error was swallowed by a blanket `except`, permanently freezing the table. Each key
+  is now aggregated over whichever runs logged it, and the row notes when a key is missing from
+  some of them.
+- `ConsoleLogger` no longer indexes into the leading axis of a logged value. That axis flattens
+  scan iterations, `vmap` lanes and separate `lox.log` call sites together, so no element of it
+  identifies "the latest" value — the table showed element `0` of that flattening, which for a
+  spooled `scan` meant the first step's value was displayed and never updated. Rows now report
+  `mean ± std` over all elements, plus the number of values.
+- `ConsoleLogger` renders nested log dicts as `outer/inner` rows instead of raising `TypeError`.
+- `ConsoleLogger.init` reuses a single `rich` `Live` display across runs rather than starting a new
+  one per run without stopping the old. Extra displays were dead on `rich` 15 and raised
+  `LiveError` on older versions, making a second `init` a hard failure there.
+- `ConsoleLogger.callback` no longer raises `KeyError` for a state it did not create.
+
 ## [0.3.1] - 2026-07-28
 
 ### Added
