@@ -1,4 +1,5 @@
 import atexit
+import threading
 from dataclasses import dataclass
 
 import jax
@@ -39,6 +40,16 @@ def _sections(keys: list[str]) -> dict[str, list[str]]:
 
 def _runs(n: int) -> str:
     return f"{n} run" + ("s" if n != 1 else "")
+
+
+def _number(value: float) -> str:
+    """Formats a statistic for display.
+
+    Large magnitudes use thousands separators rather than scientific notation, so
+    that step counters stay readable; everything else keeps four significant
+    digits, which suits both ordinary metrics and very small ones.
+    """
+    return f"{value:,.0f}" if abs(value) >= 1e4 else f"{value:.4g}"
 
 
 def _shape(values: list) -> str:
@@ -102,12 +113,14 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         self.logss = {}
         self.live = None
         self.progress = dict(progress or {})
+        self._lock = threading.Lock()
 
     def init(self, key: jax.Array) -> ConsoleLoggerState:
         def callback(key):
-            id = jnp.int32(len(self.logss.keys()))
-            self.logss[str(id)] = logdict({})
-            self._start()
+            with self._lock:
+                id = jnp.int32(len(self.logss.keys()))
+                self.logss[str(id)] = logdict({})
+                self._start()
             return id
 
         id = jax.experimental.io_callback(
@@ -144,6 +157,13 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             self.live = None
 
     def callback(self, logger_state: ConsoleLoggerState, logs: logdict):
+        # tap routes logs through an unordered jax.debug.callback, so two lanes can
+        # arrive at once. Without the lock one could insert a run while the other
+        # is iterating logss to build the table.
+        with self._lock:
+            self._render(logger_state, logs)
+
+    def _render(self, logger_state: ConsoleLoggerState, logs: logdict):
         id = str(logger_state.id)
         self.logss.setdefault(id, logdict({}))
         self.logss[id] |= logdict(_flatten(logs))
@@ -166,6 +186,12 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                 table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "", "")
             for k in section_keys:
                 values = [run[k] for run in self.logss.values() if k in run]
+                # A complex value has no mean the terminal can show, so summarise
+                # its magnitude rather than raising from float() further down.
+                values = [
+                    jnp.abs(value) if jnp.iscomplexobj(value) else value
+                    for value in values
+                ]
                 if len(values) > 1:
                     # Runs are separate dict entries rather than an array axis, so
                     # the spread across them is recoverable: reduce each run first,
@@ -173,9 +199,9 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                     v = jnp.stack([jnp.mean(jnp.ravel(value)) for value in values])
                 else:
                     v = jnp.ravel(values[0])
-                summary = f"{float(jnp.mean(v)):.4g}"
+                summary = _number(float(jnp.mean(v)))
                 if v.size > 1:
-                    summary += f" ± {float(jnp.std(v)):.4g}"
+                    summary += f" ± {_number(float(jnp.std(v)))}"
                 label = k.removeprefix(f"{section}/") if section else k
                 table.add_row(
                     f"{'  ' if section else ''}{label}",
