@@ -4,7 +4,7 @@ import time
 import jax
 import jax.numpy as jnp
 import pytest
-from rich.console import Group
+from rich.console import Console, Group
 from rich.text import Text
 from test_logger import TestLogger
 
@@ -21,10 +21,23 @@ class TestConsoleLogger(TestLogger):
         console_logger.close()
 
 
-def table(logger):
-    """Returns the metrics table from inside the panel, ahead of any bars."""
+def tables(logger) -> list:
+    """Returns the metric sub-tables, left to right, from inside the panel."""
     renderable = logger.live.get_renderable().renderable
-    return renderable.renderables[0] if isinstance(renderable, Group) else renderable
+    grid = renderable.renderables[0] if isinstance(renderable, Group) else renderable
+    return [
+        cell
+        for column in grid.columns
+        for cell in column._cells
+        if hasattr(cell, "columns")
+    ]
+
+
+def _column(logger, index: int) -> list[str]:
+    """Concatenates one column's cells across every sub-table, in reading order."""
+    return [
+        cell for table in tables(logger) for cell in _plain(table.columns[index]._cells)
+    ]
 
 
 def subtitle(logger) -> str | None:
@@ -38,19 +51,17 @@ def _plain(cells) -> list[str]:
 
 def names(logger) -> list[str]:
     """Lists the first column verbatim, including blank spacer rows."""
-    return _plain(table(logger).columns[0]._cells)
+    return _column(logger, 0)
 
 
 def rendered(logger) -> dict[str, str]:
     """Maps each rendered row's key to its ``mean ± std`` cell."""
-    columns = table(logger).columns
-    return dict(zip(_plain(columns[0]._cells), _plain(columns[1]._cells), strict=True))
+    return dict(zip(_column(logger, 0), _column(logger, 1), strict=True))
 
 
 def details(logger) -> dict[str, str]:
     """Maps each rendered row's key to its trailing detail cell."""
-    columns = table(logger).columns
-    return dict(zip(_plain(columns[0]._cells), _plain(columns[-1]._cells), strict=True))
+    return dict(zip(_column(logger, 0), _column(logger, -1), strict=True))
 
 
 def test_divergent_keys_are_all_rendered():
@@ -217,6 +228,7 @@ def test_shared_state_across_vmap_lanes_is_a_single_run():
 
 def test_keys_are_grouped_into_sections():
     logger = ConsoleLogger()
+    logger.console = Console(width=40)  # narrow enough to force a single column
     state = logger.init(jax.random.key(0))
     logger.callback(
         state,
@@ -239,6 +251,61 @@ def test_keys_are_grouped_into_sections():
         "train",
         "  loss",
     ]
+    logger.close()
+
+
+def _logs():
+    return logdict(
+        {
+            "lr": jnp.ones(1),
+            "eval": {"acc": jnp.ones(1), "ret": jnp.ones(1)},
+            "sys": {"mem": jnp.ones(1)},
+            "train": {"loss": jnp.ones(1), "kl": jnp.ones(1)},
+        }
+    )
+
+
+def test_wide_terminals_lay_sections_out_in_columns():
+    logger = ConsoleLogger()
+    logger.console = Console(width=200)
+    logger.callback(logger.init(jax.random.key(0)), _logs())
+    assert len(tables(logger)) > 1
+    logger.close()
+
+
+def test_narrow_terminals_stay_in_one_column():
+    logger = ConsoleLogger()
+    logger.console = Console(width=40)
+    logger.callback(logger.init(jax.random.key(0)), _logs())
+    assert len(tables(logger)) == 1
+    logger.close()
+
+
+def test_column_layout_preserves_section_order():
+    # Reading down each column in turn must give the same order as one column.
+    narrow, wide = ConsoleLogger(), ConsoleLogger()
+    narrow.console, wide.console = Console(width=40), Console(width=200)
+    for logger in (narrow, wide):
+        logger.callback(logger.init(jax.random.key(0)), _logs())
+    assert len(tables(wide)) > 1
+    assert [name for name in names(wide) if name] == [
+        name for name in names(narrow) if name
+    ]
+    narrow.close()
+    wide.close()
+
+
+def test_column_count_is_stable_as_values_grow():
+    # The estimate must not depend on how wide the numbers currently are, or the
+    # layout would flip between column counts on successive refreshes.
+    logger = ConsoleLogger()
+    logger.console = Console(width=120)
+    state = logger.init(jax.random.key(0))
+    counts = []
+    for magnitude in (1.0, 1e3, 1e6, 1e9):
+        logger.callback(state, _logs() | logdict({"lr": jnp.ones(1) * magnitude}))
+        counts.append(len(tables(logger)))
+    assert len(set(counts)) == 1
     logger.close()
 
 

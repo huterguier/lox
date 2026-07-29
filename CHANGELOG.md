@@ -17,6 +17,12 @@ version carries breaking changes.
   since the leading axis has no reliable order and a counter only grows, and is averaged over runs
   — exact under `vmap`, where the lanes advance in lockstep. Bars only advance mid-run under `tap`;
   `spool` delivers its logs in a single callback once the function has returned.
+- `ConsoleLogger` lays its sections out in several columns when the terminal is wide enough,
+  filling the space that a single column left empty on the right. The column count is estimated
+  from key names, shapes and a *fixed* allowance for the number — never from the current values —
+  so a metric growing from `5` to `1,234,567` cannot make the layout flip between column counts on
+  successive refreshes. Sections are packed in order, column by column, so reading down each column
+  in turn matches the single-column order; columns may therefore differ in height.
 - Test coverage for `ConsoleLogger`, which previously had none.
 - `docs/the_sharp_bits.md` documents that `vmap` only adds a leading axis to logged values that
   actually depend on the mapped input, that the leading axis is not a time axis and should not be
