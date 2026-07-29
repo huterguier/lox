@@ -56,12 +56,12 @@ def names(logger) -> list[str]:
 
 def rendered(logger) -> dict[str, str]:
     """Maps each rendered row's key to its ``mean ± std`` cell."""
-    return dict(zip(_column(logger, 0), _column(logger, 1), strict=True))
+    return dict(zip(_column(logger, 0), _column(logger, 2), strict=True))
 
 
 def details(logger) -> dict[str, str]:
-    """Maps each rendered row's key to its trailing detail cell."""
-    return dict(zip(_column(logger, 0), _column(logger, -1), strict=True))
+    """Maps each rendered row's key to the detail shown beside it."""
+    return dict(zip(_column(logger, 0), _column(logger, 1), strict=True))
 
 
 def test_divergent_keys_are_all_rendered():
@@ -171,6 +171,18 @@ def test_shape_is_per_row_and_run_count_is_in_the_subtitle():
     logger.close()
 
 
+def test_scalar_shapes_are_not_shown():
+    # A (1,) or () shape says nothing the value does not already say.
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(
+        state,
+        logdict({"lr": jnp.ones(1), "hist": jnp.ones(4), "img": jnp.ones((2, 3))}),
+    )
+    assert details(logger) == {"lr": "", "hist": "(4,)", "img": "(2, 3)"}
+    logger.close()
+
+
 def test_shapes_differ_between_keys_in_one_run():
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
@@ -208,7 +220,7 @@ def test_vmapped_init_yields_one_run_per_lane():
     keys = jnp.stack([jax.random.key(seed) for seed in range(3)])
     states = jax.vmap(logger.init)(keys)
     jax.vmap(lambda state, x: logger.spool(f, state)(x))(states, jnp.ones((3, 5)))
-    assert details(logger)["v"] == "(1,)"
+    assert details(logger)["v"] == ""  # each lane logged one scalar
     assert subtitle(logger) == "3 runs"
     logger.close()
 
