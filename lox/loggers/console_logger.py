@@ -119,12 +119,12 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         return ConsoleLoggerState(key=key, id=id)
 
     def _new_table(self) -> Table:
-        # expand=False keeps the value next to its name: the slack goes to the
-        # right of the row rather than between the two, which matters once there
-        # are enough rows to have to track one across the panel.
-        table = Table(box=None, expand=False, show_header=False, pad_edge=False)
+        # The spacer column takes all the slack, so a value stays beside its name
+        # while the shape lines up with the bar's counter at the right edge.
+        table = Table(box=None, expand=True, show_header=False, pad_edge=False)
         table.add_column(no_wrap=True)
-        table.add_column(justify="right", no_wrap=True)
+        table.add_column(justify="right", no_wrap=True, style="bold")
+        table.add_column(ratio=1)
         table.add_column(justify="right", style="dim", no_wrap=True)
         return table
 
@@ -162,8 +162,8 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         for i, (section, section_keys) in enumerate(sections.items()):
             if section:
                 if i:
-                    table.add_row("", "", "")
-                table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "")
+                    table.add_row("", "", "", "")
+                table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "", "")
             for k in section_keys:
                 values = [run[k] for run in self.logss.values() if k in run]
                 if len(values) > 1:
@@ -178,16 +178,19 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                     summary += f" ± {float(jnp.std(v)):.4g}"
                 label = k.removeprefix(f"{section}/") if section else k
                 table.add_row(
-                    f"{'  ' if section else ''}[bold]{label}[/bold]",
+                    f"{'  ' if section else ''}{label}",
                     summary,
+                    "",
                     _shape(values) if len(counts) == 1 else _shape_and_runs(values),
                 )
         bars = self._bars()
+        if bars.row_count and table.row_count:
+            table.add_row("", "", "", "")
         self.live.update(
             Panel(
-                Group(bars, table) if bars.row_count else table,
+                Group(table, bars) if bars.row_count else table,
                 box=box.ROUNDED,
-                border_style="white",
+                border_style="dim",
                 subtitle=_runs(counts.pop()) if len(counts) == 1 else None,
                 subtitle_align="right",
             )
@@ -212,8 +215,13 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             # lockstep, so their mean is simply the shared position.
             completed = float(jnp.mean(jnp.stack([jnp.max(value) for value in values])))
             table.add_row(
-                f"[bold]{k}[/bold]",
-                ProgressBar(total=total, completed=min(completed, total)),
+                k,
+                ProgressBar(
+                    total=total,
+                    completed=min(completed, total),
+                    complete_style="cyan",
+                    finished_style="green",
+                ),
                 f"{completed:,.0f}/{total:,.0f}",
             )
         return table
