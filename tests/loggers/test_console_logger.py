@@ -64,7 +64,8 @@ def test_nested_logs_are_flattened():
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
     logger.callback(state, logdict({"m": {"a": jnp.ones(3)}}))
-    assert set(rendered(logger)) == {"[bold]m/a[/bold]"}
+    assert set(logger.logss["0"]) == {"m/a"}
+    assert list(rendered(logger)) == ["[bold cyan]m[/bold cyan]", "  [bold]a[/bold]"]
     logger.close()
 
 
@@ -169,6 +170,49 @@ def test_shared_state_across_vmap_lanes_is_a_single_run():
     state = logger.init(jax.random.key(0))
     logger.spool(jax.vmap(f), state)(jnp.ones((3, 5)))
     assert details(logger)["[bold]v[/bold]"] == "[dim]1 run, (3, 1)[/dim]"
+    logger.close()
+
+
+def test_keys_are_grouped_into_sections():
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(
+        state,
+        logdict(
+            {
+                "lr": jnp.ones(1),
+                "train": {"loss": jnp.ones(1)},
+                "eval": {"acc": jnp.ones(1)},
+            }
+        ),
+    )
+    # Ungrouped keys lead, then one header per section with its members indented.
+    assert list(rendered(logger)) == [
+        "[bold]lr[/bold]",
+        "[bold cyan]eval[/bold cyan]",
+        "  [bold]acc[/bold]",
+        "[bold cyan]train[/bold cyan]",
+        "  [bold]loss[/bold]",
+    ]
+    logger.close()
+
+
+def test_section_headers_are_omitted_without_nesting():
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"a": jnp.ones(1), "b": jnp.ones(1)}))
+    assert list(rendered(logger)) == ["[bold]a[/bold]", "[bold]b[/bold]"]
+    logger.close()
+
+
+def test_deeper_nesting_groups_on_the_first_segment():
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"train": {"opt": {"lr": jnp.ones(1)}}}))
+    assert list(rendered(logger)) == [
+        "[bold cyan]train[/bold cyan]",
+        "  [bold]opt/lr[/bold]",
+    ]
     logger.close()
 
 
