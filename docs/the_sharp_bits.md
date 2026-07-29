@@ -79,6 +79,54 @@ y = logger.spool(f, logger_state)(inputs)
 ```
 The `spool` method on a logger typically collects all logs first and then writes them (e.g., to disk) in one go after the function returns, whereas `tap` might write them incrementally.
 
+Loggers that aggregate across runs, such as `ConsoleLogger`, tell runs apart by their state. Give
+each run its own `init` — in a Python loop or under `vmap` — and each is tracked separately:
+
+```python
+# Three runs, whether looped...
+for seed in range(3):
+    logger_state = logger.init(jax.random.key(seed))
+    logger.spool(f, logger_state)(x[seed])
+
+# ...or vmapped. init is vmapped too, so every lane gets its own state.
+logger_states = jax.vmap(logger.init)(keys)
+jax.vmap(lambda s, xi: logger.spool(f, s)(xi))(logger_states, x)
+```
+
+Sharing one state across lanes instead collapses them into a single run, because the lanes end up
+fused into one logged array with nothing marking where each begins:
+
+```python
+logger_state = logger.init(jax.random.key(0))
+logger.spool(jax.vmap(f), logger_state)(x)  # one run, not three
+```
+
+## `vmap` Does Not Always Add a Leading Axis
+
+`vmap` only batches values that actually depend on the mapped input. A `lox.log` call whose value
+is the same in every lane — a hyperparameter, a schedule value, a metric computed from unbatched
+state — is logged **once**, not once per lane:
+
+```python
+def f(x):
+    lox.log({"batched": x.sum()})     # differs per lane
+    lox.log({"constant": jnp.float32(42.0)})  # identical in every lane
+    return x
+
+_, logs = lox.spool(jax.vmap(f))(jnp.ones((3, 5)))
+logs["batched"].shape   # (3, 1) -- one entry per lane
+logs["constant"].shape  # (1,)   -- a single entry for all three lanes
+```
+
+This is ordinary JAX batching rather than a lox behavior, but it is easy to trip over when sweeping
+seeds and expecting `n` copies of everything.
+
+More generally, the leading axis of a logged value is not a "time" axis. It fuses scan iterations,
+`vmap` lanes and separate `lox.log` call sites together, and how many leading axes there are varies
+— a scan adds one, `vmap` can add another. Indexing it positionally (`logs["loss"][-1]` as "the
+final value") is therefore unreliable; prefer order-independent reductions such as `.reduce("mean")`
+unless you know exactly which transformations produced the array.
+
 ## Selective Logging
 
 `lox.tap`, `lox.spool`, `lox.strip`, and `lox.keep` all accept `argnames` and `tags` to filter
