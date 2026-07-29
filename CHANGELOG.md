@@ -9,6 +9,9 @@ version carries breaking changes.
 ### Added
 - `ConsoleLogger.close()` stops the live display and restores the terminal, and is registered with
   `atexit` so the cursor is unhidden even if the process exits without calling it.
+- `ConsoleLogger` groups rows into sections by the part of a key before its first `/`, so nested
+  logs and `prefix=` produce a structured table instead of a flat list. Keys without a `/` stay at
+  the top, above the named sections.
 - Test coverage for `ConsoleLogger`, which previously had none.
 - `docs/the_sharp_bits.md` documents that `vmap` only adds a leading axis to logged values that
   actually depend on the mapped input, that the leading axis is not a time axis and should not be

@@ -20,6 +20,21 @@ class ConsoleLoggerState(LoggerState):
     id: jax.Array
 
 
+def _sections(keys: list[str]) -> dict[str, list[str]]:
+    """Groups keys by the part before their first ``/``.
+
+    Keys without a ``/`` share the leading unnamed section, so they stay at the top
+    rather than being scattered between the named ones.
+    """
+    sections: dict[str, list[str]] = {"": []}
+    for k in keys:
+        section = k.split("/")[0] if "/" in k else ""
+        sections.setdefault(section, []).append(k)
+    if not sections[""]:
+        del sections[""]
+    return sections
+
+
 def _flatten(data: dict, prefix: str = "") -> dict:
     """Flattens nested log dicts into ``"outer/inner"`` keys."""
     flat = {}
@@ -109,23 +124,29 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
 
         self._start()
         table = self._new_table()
-        for k in sorted({k for run in self.logss.values() for k in run}):
-            values = [run[k] for run in self.logss.values() if k in run]
-            if len(values) > 1:
-                # Runs are separate dict entries rather than an array axis, so the
-                # spread across them is recoverable: reduce each run first, then
-                # report how much the runs disagree.
-                v = jnp.stack([jnp.mean(jnp.ravel(value)) for value in values])
-            else:
-                v = jnp.ravel(values[0])
-            summary = f"{float(jnp.mean(v)):.4g}"
-            if v.size > 1:
-                summary += f" ± {float(jnp.std(v)):.4g}"
-            table.add_row(
-                f"[bold]{k}[/bold]",
-                summary,
-                f"[dim]{self._detail(values)}[/dim]",
-            )
+        sections = _sections(sorted({k for run in self.logss.values() for k in run}))
+        for i, (section, keys) in enumerate(sections.items()):
+            if section:
+                table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "")
+            for j, k in enumerate(keys):
+                values = [run[k] for run in self.logss.values() if k in run]
+                if len(values) > 1:
+                    # Runs are separate dict entries rather than an array axis, so
+                    # the spread across them is recoverable: reduce each run first,
+                    # then report how much the runs disagree.
+                    v = jnp.stack([jnp.mean(jnp.ravel(value)) for value in values])
+                else:
+                    v = jnp.ravel(values[0])
+                summary = f"{float(jnp.mean(v)):.4g}"
+                if v.size > 1:
+                    summary += f" ± {float(jnp.std(v)):.4g}"
+                label = k.removeprefix(f"{section}/") if section else k
+                table.add_row(
+                    f"{'  ' if section else ''}[bold]{label}[/bold]",
+                    summary,
+                    f"[dim]{self._detail(values)}[/dim]",
+                    end_section=j == len(keys) - 1 and i < len(sections) - 1,
+                )
         self.live.update(table)
 
     def _detail(self, values: list[jax.Array]) -> str:
