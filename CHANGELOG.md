@@ -34,7 +34,10 @@ version carries breaking changes.
   order-independent `mean ± std` instead, and name the shape each run contributed so the discarded
   structure stays visible. Values and shapes are right-aligned in their own columns, and the run
   count moved to the panel subtitle since it is normally the same on every row — rows fall back to
-  carrying their own count when they disagree.
+  carrying their own count when they disagree. A spacer column keeps each value beside its name
+  while shapes align with the bars' counters at the right edge, sections are separated by a blank
+  row, and bars sit below the metrics. Emphasis moved from the key to its value, and the border no
+  longer hard-codes `white`, which was near-invisible on light terminals.
 - `ConsoleLogger` omits the `± std` when a row summarises a single value, where it was always
   `± 0` — the common case of one run logging a scalar. It reappears as soon as there is a second
   value to compare against, including when the two agree and the deviation really is zero.
