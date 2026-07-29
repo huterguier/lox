@@ -171,6 +171,26 @@ def test_shape_is_per_row_and_run_count_is_in_the_subtitle():
     logger.close()
 
 
+@pytest.mark.parametrize(
+    "shape, expected",
+    [
+        ((1,), ""),  # one scalar event
+        ((1, 4), "(4,)"),  # one vector event, as tap delivers it
+        ((5,), "(5,)"),  # five scalar events, as spool of a scan delivers them
+        ((5, 4), "(5, 4)"),
+        ((3, 1), "(3,)"),  # fused vmap lanes: the lanes are real, the event is not
+        ((15, 1, 3, 4), "(15, 3, 4)"),
+        ((1, 1), ""),
+    ],
+)
+def test_singleton_axes_are_dropped_from_shapes(shape, expected):
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"v": jnp.ones(shape)}))
+    assert details(logger)["v"] == expected
+    logger.close()
+
+
 def test_scalar_shapes_are_not_shown():
     # A (1,) or () shape says nothing the value does not already say.
     logger = ConsoleLogger()
@@ -233,7 +253,9 @@ def test_shared_state_across_vmap_lanes_is_a_single_run():
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
     logger.spool(jax.vmap(f), state)(jnp.ones((3, 5)))
-    assert details(logger)["v"] == "(3, 1)"
+    # (3, 1): three fused lanes, one event each. The event axis is dropped, but
+    # the lanes are real values and must survive.
+    assert details(logger)["v"] == "(3,)"
     assert subtitle(logger) == "1 run"
     logger.close()
 
