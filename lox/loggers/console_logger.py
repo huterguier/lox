@@ -62,12 +62,14 @@ def _number(value: float) -> str:
 def _shape(values: list) -> str:
     """Names the shape each run contributed, which differs from key to key.
 
-    Axes of size 1 are dropped: ``lox.log`` gives every value a leading axis for
-    the log event, and transformations can add further singleton axes, none of
-    which describe the logged value itself. A single scalar event therefore
-    reduces to ``()`` and a single vector event to its own shape.
+    A leading axis of size 1 is dropped. ``lox.log`` gives every value such an
+    axis for the log event, and it is the callback's per-lane dispatch -- not the
+    array -- that carries ``vmap``, so the event axis stays leading. Dropping only
+    that one leaves any size-1 axis of the logged value itself intact.
     """
-    shapes = {tuple(d for d in value.shape if d != 1) for value in values}
+    shapes = {
+        value.shape[1:] if value.shape[:1] == (1,) else value.shape for value in values
+    }
     return "mixed shapes" if len(shapes) > 1 else str(shapes.pop())
 
 
