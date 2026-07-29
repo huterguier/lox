@@ -1,3 +1,6 @@
+import threading
+import time
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -310,6 +313,72 @@ def test_progress_is_absent_without_configuration():
     logger.callback(state, logdict({"step": jnp.array([5.0])}))
     assert bars(logger) == {}
     assert list(rendered(logger)) == ["step"]
+    logger.close()
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (1234567.0, "1,234,567"),  # a step counter, not 1.235e+06
+        (12345.6, "12,346"),
+        (9999.0, "9999"),
+        (412.5, "412.5"),
+        (1e-9, "1e-09"),  # small values keep scientific notation
+        (0.0, "0"),
+        (-55123.0, "-55,123"),
+    ],
+)
+def test_large_values_avoid_scientific_notation(value, expected):
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"v": jnp.array([value])}))
+    assert rendered(logger)["v"] == expected
+    logger.close()
+
+
+def test_complex_values_are_summarised_by_magnitude():
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"z": jnp.array([3 + 4j])}))
+    assert rendered(logger)["z"] == "5"
+    logger.close()
+
+
+def test_rendering_is_mutually_exclusive():
+    # tap fires its callbacks through an unordered jax.debug.callback, so two can
+    # land at once and one would mutate logss while the other iterates it. Rather
+    # than trying to provoke that race -- the window is far too small to hit
+    # reliably -- assert the exclusion that prevents it, by widening the critical
+    # section until an overlap would be unmissable.
+    overlaps = []
+
+    class SlowConsoleLogger(ConsoleLogger):
+        inside = False
+
+        def _render(self, *args, **kwargs):
+            if type(self).inside:
+                overlaps.append(True)
+            type(self).inside = True
+            time.sleep(0.01)
+            try:
+                return super()._render(*args, **kwargs)
+            finally:
+                type(self).inside = False
+
+    logger = SlowConsoleLogger()
+    state = logger.init(jax.random.key(0))
+
+    def report():
+        for _ in range(5):
+            logger.callback(state, logdict({"loss": jnp.ones(1)}))
+
+    threads = [threading.Thread(target=report) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert overlaps == []
     logger.close()
 
 

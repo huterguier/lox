@@ -51,6 +51,14 @@ version carries breaking changes.
   one per run without stopping the old. Extra displays were dead on `rich` 15 and raised
   `LiveError` on older versions, making a second `init` a hard failure there.
 - `ConsoleLogger.callback` no longer raises `KeyError` for a state it did not create.
+- `ConsoleLogger` formats large magnitudes with thousands separators instead of scientific
+  notation, so a step counter reads `1,234,567` rather than `1.235e+06`. Values below 10,000 keep
+  four significant digits, which suits both ordinary metrics and very small ones.
+- `ConsoleLogger` summarises complex values by their magnitude instead of raising `TypeError` from
+  `float()` while rendering.
+- `ConsoleLogger` serialises rendering behind a lock. `tap` routes logs through an *unordered*
+  `jax.debug.callback`, so two callbacks can arrive at once and one could register a run while the
+  other iterates over them to build the table.
 
 ## [0.3.1] - 2026-07-28
 
