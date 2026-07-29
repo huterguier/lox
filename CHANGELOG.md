@@ -41,8 +41,11 @@ version carries breaking changes.
   identifies "the latest" value — the table showed element `0` of that flattening, which for a
   spooled `scan` meant the first step's value was displayed and never updated. Rows now report an
   order-independent `mean ± std` instead, and name the shape each run contributed so the discarded
-  structure stays visible. The shape sits immediately behind the key and is omitted when it is
-  `(1,)` or `()`, since a scalar's shape says nothing its value does not. Values and shapes are right-aligned in their own columns, and the run
+  structure stays visible. The shape sits immediately behind the key with its size-1 axes dropped —
+  `lox.log` gives every value a leading axis for the log event, and transformations can add more
+  singleton axes, none of which describe the value — so a vector logged once reads `(4,)` rather
+  than `(1, 4)`. A shape that reduces to `()` is omitted entirely, since a scalar's shape says
+  nothing its value does not. Values and shapes are right-aligned in their own columns, and the run
   count moved to the panel subtitle since it is normally the same on every row — rows fall back to
   carrying their own count when they disagree. A spacer column keeps each value beside its name
   while shapes align with the bars' counters at the right edge, sections are separated by a blank

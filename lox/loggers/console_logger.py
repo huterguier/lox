@@ -60,8 +60,14 @@ def _number(value: float) -> str:
 
 
 def _shape(values: list) -> str:
-    """Names the shape each run contributed, which differs from key to key."""
-    shapes = {value.shape for value in values}
+    """Names the shape each run contributed, which differs from key to key.
+
+    Axes of size 1 are dropped: ``lox.log`` gives every value a leading axis for
+    the log event, and transformations can add further singleton axes, none of
+    which describe the logged value itself. A single scalar event therefore
+    reduces to ``()`` and a single vector event to its own shape.
+    """
+    shapes = {tuple(d for d in value.shape if d != 1) for value in values}
     return "mixed shapes" if len(shapes) > 1 else str(shapes.pop())
 
 
@@ -74,7 +80,7 @@ def _detail(values: list, show_runs: bool) -> str:
     """
     parts = []
     shape = _shape(values)
-    if shape not in ("(1,)", "()"):
+    if shape != "()":
         parts.append(shape)
     if show_runs:
         parts.append(_runs(len(values)))
