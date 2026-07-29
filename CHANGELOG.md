@@ -25,6 +25,9 @@ version carries breaking changes.
   spooled `scan` meant the first step's value was displayed and never updated. Rows now report an
   order-independent `mean ± std` instead, and name the shape each run contributed so the discarded
   structure stays visible.
+- `ConsoleLogger` omits the `± std` when a row summarises a single value, where it was always
+  `± 0` — the common case of one run logging a scalar. It reappears as soon as there is a second
+  value to compare against, including when the two agree and the deviation really is zero.
 - `ConsoleLogger`'s standard deviation is taken across runs when there is more than one, by
   reducing each run before comparing them. It previously pooled every value from every run into one
   bag, so the deviation was dominated by how much a metric moved *within* a run rather than by how

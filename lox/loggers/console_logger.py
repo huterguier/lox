@@ -118,9 +118,12 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                 v = jnp.stack([jnp.mean(jnp.ravel(value)) for value in values])
             else:
                 v = jnp.ravel(values[0])
+            summary = f"{float(jnp.mean(v)):.4g}"
+            if v.size > 1:
+                summary += f" ± {float(jnp.std(v)):.4g}"
             table.add_row(
                 f"[bold]{k}[/bold]",
-                f"{float(jnp.mean(v)):.4g} ± {float(jnp.std(v)):.4g}",
+                summary,
                 f"[dim]{self._detail(values)}[/dim]",
             )
         self.live.update(table)

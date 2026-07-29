@@ -100,6 +100,28 @@ def test_single_run_deviation_covers_all_values():
     logger.close()
 
 
+def test_deviation_is_omitted_for_a_lone_value():
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"loss": jnp.array([5.0])}))
+    assert rendered(logger)["[bold]loss[/bold]"] == "5"
+
+    # A second value to compare against brings the deviation back, even when the
+    # values agree and it is therefore zero.
+    state = logger.init(jax.random.key(1))
+    logger.callback(state, logdict({"loss": jnp.array([5.0])}))
+    assert rendered(logger)["[bold]loss[/bold]"] == "5 ± 0"
+    logger.close()
+
+
+def test_deviation_is_kept_for_a_single_run_with_several_values():
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"loss": jnp.array([4.0, 6.0])}))
+    assert rendered(logger)["[bold]loss[/bold]"] == "5 ± 1"
+    logger.close()
+
+
 def test_detail_reports_run_count_and_shape():
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
