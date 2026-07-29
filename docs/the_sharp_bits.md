@@ -101,6 +101,21 @@ logger_state = logger.init(jax.random.key(0))
 logger.spool(jax.vmap(f), logger_state)(x)  # one run, not three
 ```
 
+### `Logger.tap` Cannot Tell Runs Apart Under `jit` or `vmap`
+
+`Logger.tap` captures the logger state in a closure, and `jax.debug.callback` only makes its
+*arguments* concrete — so under a transformation the state stays a tracer and every lane is
+attributed to a single run:
+
+```python
+# all three lanes are recorded as one run
+jax.vmap(lambda state, x: logger.tap(f, state)(x))(states, xs)
+```
+
+`Logger.spool` is unaffected: it passes the state as a callback argument from outside the traced
+function, so each lane arrives with its own. Prefer `spool` whenever you need per-run figures, and
+keep `tap` for single-run streaming.
+
 ## `vmap` Does Not Always Add a Leading Axis
 
 `vmap` only batches values that actually depend on the mapped input. A `lox.log` call whose value
