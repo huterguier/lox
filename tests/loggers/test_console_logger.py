@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
+from rich.console import Group
 from test_logger import TestLogger
 
 import lox
@@ -16,17 +17,21 @@ class TestConsoleLogger(TestLogger):
         console_logger.close()
 
 
+def table(logger):
+    """Returns the metrics table, which bars push into a Group."""
+    renderable = logger.live.get_renderable()
+    return renderable.renderables[-1] if isinstance(renderable, Group) else renderable
+
+
 def rendered(logger) -> dict[str, str]:
     """Maps each rendered row's key to its ``mean ± std`` cell."""
-    table = logger.live.get_renderable()
-    keys, values, _ = (column._cells for column in table.columns)
+    keys, values, _ = (column._cells for column in table(logger).columns)
     return dict(zip(keys, values, strict=True))
 
 
 def details(logger) -> dict[str, str]:
     """Maps each rendered row's key to its trailing detail cell."""
-    table = logger.live.get_renderable()
-    keys, _, cells = (column._cells for column in table.columns)
+    keys, _, cells = (column._cells for column in table(logger).columns)
     return dict(zip(keys, cells, strict=True))
 
 
@@ -213,6 +218,60 @@ def test_deeper_nesting_groups_on_the_first_segment():
         "[bold cyan]train[/bold cyan]",
         "  [bold]opt/lr[/bold]",
     ]
+    logger.close()
+
+
+def bars(logger) -> dict[str, tuple[float, float]]:
+    """Maps each rendered bar's key to its ``(completed, total)``."""
+    renderable = logger.live.get_renderable()
+    if not isinstance(renderable, Group):
+        return {}
+    keys, columns, _ = (column._cells for column in renderable.renderables[0].columns)
+    return {k: (bar.completed, bar.total) for k, bar in zip(keys, columns, strict=True)}
+
+
+def test_progress_key_is_barred_and_kept_out_of_the_table():
+    logger = ConsoleLogger(progress={"step": 10_000})
+    state = logger.init(jax.random.key(0))
+    logger.callback(
+        state, logdict({"step": jnp.array([4200.0]), "loss": jnp.array([1.0])})
+    )
+    assert bars(logger) == {"[bold]step[/bold]": (4200.0, 10_000)}
+    assert list(rendered(logger)) == ["[bold]loss[/bold]"]
+    logger.close()
+
+
+def test_progress_uses_the_maximum_regardless_of_order():
+    logger = ConsoleLogger(progress={"step": 100})
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"step": jnp.array([10.0, 40.0, 25.0])}))
+    assert bars(logger)["[bold]step[/bold]"] == (40.0, 100)
+    logger.close()
+
+
+def test_progress_averages_lockstep_runs():
+    logger = ConsoleLogger(progress={"step": 100})
+    for seed in range(3):
+        state = logger.init(jax.random.key(seed))
+        logger.callback(state, logdict({"step": jnp.array([30.0])}))
+    assert bars(logger)["[bold]step[/bold]"] == (30.0, 100)
+    logger.close()
+
+
+def test_no_bar_until_the_key_is_logged():
+    logger = ConsoleLogger(progress={"step": 100})
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"loss": jnp.array([1.0])}))
+    assert bars(logger) == {}
+    logger.close()
+
+
+def test_progress_is_absent_without_configuration():
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"step": jnp.array([5.0])}))
+    assert bars(logger) == {}
+    assert list(rendered(logger)) == ["[bold]step[/bold]"]
     logger.close()
 
 

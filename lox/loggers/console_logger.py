@@ -5,8 +5,9 @@ import jax
 import jax.experimental
 import jax.numpy as jnp
 from rich import box
-from rich.console import Console
+from rich.console import Console, Group
 from rich.live import Live
+from rich.progress import ProgressBar
 from rich.table import Table
 
 from lox.logdict import logdict
@@ -74,10 +75,18 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
     logss: dict[str, logdict]
     live: Live | None
 
-    def __init__(self):
+    def __init__(self, progress: dict[str, float] | None = None):
+        """
+        Args:
+            progress: Maps a logged key to the total it counts towards, rendering
+                it as a progress bar above the table instead of as a row. Bars only
+                advance during a run under :meth:`tap`; under :meth:`spool` the logs
+                arrive in one callback once the function has returned.
+        """
         self.console = Console()
         self.logss = {}
         self.live = None
+        self.progress = dict(progress or {})
 
     def init(self, key: jax.Array) -> ConsoleLoggerState:
         def callback(key):
@@ -124,11 +133,12 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
 
         self._start()
         table = self._new_table()
-        sections = _sections(sorted({k for run in self.logss.values() for k in run}))
-        for i, (section, keys) in enumerate(sections.items()):
+        keys = {k for run in self.logss.values() for k in run} - set(self.progress)
+        sections = _sections(sorted(keys))
+        for i, (section, section_keys) in enumerate(sections.items()):
             if section:
                 table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "")
-            for j, k in enumerate(keys):
+            for j, k in enumerate(section_keys):
                 values = [run[k] for run in self.logss.values() if k in run]
                 if len(values) > 1:
                     # Runs are separate dict entries rather than an array axis, so
@@ -145,9 +155,28 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                     f"{'  ' if section else ''}[bold]{label}[/bold]",
                     summary,
                     f"[dim]{self._detail(values)}[/dim]",
-                    end_section=j == len(keys) - 1 and i < len(sections) - 1,
+                    end_section=j == len(section_keys) - 1 and i < len(sections) - 1,
                 )
-        self.live.update(table)
+        bars = self._bars()
+        self.live.update(Group(bars, table) if bars.row_count else table)
+
+    def _bars(self) -> Table:
+        """Renders one bar per configured key, at the mean progress of the runs."""
+        table = Table(box=None, expand=True, show_header=False, padding=(0, 1))
+        for k, total in self.progress.items():
+            values = [run[k] for run in self.logss.values() if k in run]
+            if not values:
+                continue
+            # max() rather than the last element: the leading axis has no reliable
+            # order, and a counter only ever grows. Under vmap the lanes advance in
+            # lockstep, so their mean is simply the shared position.
+            completed = float(jnp.mean(jnp.stack([jnp.max(value) for value in values])))
+            table.add_row(
+                f"[bold]{k}[/bold]",
+                ProgressBar(total=total, completed=min(completed, total)),
+                f"[dim]{completed:,.0f}/{total:,.0f}[/dim]",
+            )
+        return table
 
     def _detail(self, values: list[jax.Array]) -> str:
         """Describes how many runs a row covers and what each contributed."""
