@@ -2,6 +2,7 @@ import atexit
 import math
 import threading
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import jax
 import jax.experimental
@@ -17,12 +18,23 @@ from rich.text import Text
 from lox.logdict import logdict
 from lox.loggers.logger import Logger, LoggerState
 
-_VALUE_ALLOWANCE = 16  # widest realistic "mean ± std"
-_GUTTER = 3  # blank columns between two laid-out sections
+_VALUE_ALLOWANCE = 16
+_GUTTER = 3
 _MAX_COLUMNS = 4
+_CELL_PADDING = 3
+_PANEL_CHROME = 4
 
-Row = tuple[str, str, str]  # label, detail, "mean ± std"
-Section = tuple[str, list[Row]]  # section name ("" when ungrouped), its rows
+
+class Row(NamedTuple):
+    """One rendered metric: its name, what is shown beside it, and its statistic."""
+
+    label: str
+    detail: str
+    summary: str
+
+
+Section = tuple[str, list[Row]]
+"""A section name -- empty for ungrouped keys -- and the rows beneath it."""
 
 
 @jax.tree_util.register_dataclass
@@ -103,11 +115,13 @@ def _detail(values: list[jax.Array], show_runs: bool) -> str:
 
 
 def _summarise(values: list[jax.Array]) -> str:
-    """Reduces a key's values across runs to a ``mean ± std`` cell."""
+    """Reduces a key's values across runs to a ``mean ± std`` cell.
+
+    Runs are separate dict entries rather than an array axis, so the spread across
+    them is recoverable: with more than one, each run is reduced first and the
+    deviation then reports how much the runs disagree.
+    """
     if len(values) > 1:
-        # Runs are separate dict entries rather than an array axis, so the spread
-        # across them is recoverable: reduce each run first, then report how much
-        # the runs disagree.
         reduced = jnp.stack([jnp.mean(jnp.ravel(value)) for value in values])
     else:
         reduced = jnp.ravel(values[0])
@@ -191,9 +205,12 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             self.live = None
 
     def callback(self, logger_state: ConsoleLoggerState, logs: logdict):
-        # tap routes logs through an unordered jax.debug.callback, so two lanes can
-        # arrive at once. Without the lock one could insert a run while the other
-        # is iterating logss to build the panel.
+        """Records the logs and redraws the panel.
+
+        Rendering is serialised: ``tap`` routes logs through an *unordered*
+        ``jax.debug.callback``, so two lanes can arrive at once and one could
+        register a run while the other iterates them to build the panel.
+        """
         with self._lock:
             self._render(logger_state, logs)
 
@@ -210,16 +227,19 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         ]
 
     def _render(self, logger_state: ConsoleLoggerState, logs: logdict):
+        """Rebuilds the panel from every run recorded so far.
+
+        The run count is normally the same on every row, so it is stated once in
+        the subtitle rather than repeated down a column. When the counts disagree
+        -- while runs are still reporting, or for a key only some of them log --
+        there is no single count to state and each row carries its own instead.
+        """
         run_id = str(logger_state.id)
         self.logss.setdefault(run_id, logdict({}))
         self.logss[run_id] |= logdict(_flatten(logs))
         self._start()
 
         keys = {k for run in self.logss.values() for k in run} - set(self.progress)
-        # The run count is normally the same on every row, so it belongs in the
-        # subtitle rather than repeated down a column. When the counts disagree --
-        # while runs are still reporting, or for a key only some of them log --
-        # there is no single count to state, so each row carries its own instead.
         counts = {len(self._values(k)) for k in keys}
         show_runs = len(counts) > 1
 
@@ -230,10 +250,10 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                 values = self._values(key)
                 label = key.removeprefix(f"{section}/") if section else key
                 rows.append(
-                    (
-                        f"{'  ' if section else ''}{label}",
-                        _detail(values, show_runs=show_runs),
-                        _summarise(values),
+                    Row(
+                        label=f"{'  ' if section else ''}{label}",
+                        detail=_detail(values, show_runs=show_runs),
+                        summary=_summarise(values),
                     )
                 )
             sections.append((section, rows))
@@ -251,9 +271,13 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         )
 
     def _new_table(self) -> Table:
-        # The detail sits immediately behind the name rather than in a far column,
-        # but keeps a cell of its own so values stay aligned across rows. The
-        # trailing spacer takes the slack, keeping each value beside its name.
+        """Builds an empty table of name, detail, value and a trailing spacer.
+
+        The detail sits immediately behind the name rather than in a far column,
+        but keeps a cell of its own so values stay aligned across rows. The spacer
+        takes the slack, so a value stays beside its name instead of drifting to
+        the far edge.
+        """
         table = Table(box=None, expand=True, show_header=False, pad_edge=False)
         table.add_column(no_wrap=True)
         table.add_column(no_wrap=True, style="dim")
@@ -267,7 +291,9 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         The estimate deliberately uses only widths that do not move as values do
         -- key names, shapes, and a fixed allowance for the number -- so that a
         metric growing from ``5`` to ``1,234,567`` cannot make the whole layout
-        flip between column counts on successive refreshes.
+        flip between column counts on successive refreshes. ``_VALUE_ALLOWANCE``
+        is that allowance, chosen as the widest realistic ``mean ± std``, and the
+        two constants beside it cover the cell padding and the panel border.
         """
         rows = [row for _, section_rows in sections for row in section_rows]
         if not rows:
@@ -276,9 +302,9 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             max(len(label) for label, _, _ in rows)
             + max(len(detail) for _, detail, _ in rows)
             + _VALUE_ALLOWANCE
-            + 3  # inter-column padding within a sub-table
+            + _CELL_PADDING
         )
-        available = self.console.width - 4  # panel border and padding
+        available = self.console.width - _PANEL_CHROME
         return max(1, min(_MAX_COLUMNS, len(sections), available // (width + _GUTTER)))
 
     def _pack(self, sections: list[Section], n: int) -> list[list[Section]]:
@@ -325,6 +351,10 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
     def _bars(self) -> Table:
         """Renders one bar per configured key, at the mean progress of the runs.
 
+        Progress is the maximum logged value rather than the last: the leading
+        axis has no reliable order, and a counter only ever grows. Under ``vmap``
+        the lanes advance in lockstep, so their mean is simply the shared position.
+
         Bars live in their own table so the metric columns are not stretched to
         accommodate a full-width bar.
         """
@@ -336,9 +366,6 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             values = self._values(key)
             if not values:
                 continue
-            # max() rather than the last element: the leading axis has no reliable
-            # order, and a counter only ever grows. Under vmap the lanes advance in
-            # lockstep, so their mean is simply the shared position.
             completed = float(jnp.mean(jnp.stack([jnp.max(value) for value in values])))
             table.add_row(
                 key,
