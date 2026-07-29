@@ -18,8 +18,7 @@ version carries breaking changes.
 - `ConsoleLogger` no longer stops updating forever when two runs log different keys. It used to
   stack all runs into one array to compute `mean ± std`, which requires identical keys across runs;
   the resulting error was swallowed by a blanket `except`, permanently freezing the table. Each key
-  is now aggregated over whichever runs logged it, and the row notes when a key is missing from
-  some of them.
+  is now aggregated over whichever runs logged it, and each row reports how many runs it covers.
 - `ConsoleLogger` no longer indexes into the leading axis of a logged value. That axis flattens
   scan iterations, `vmap` lanes and separate `lox.log` call sites together, so no element of it
   identifies "the latest" value — the table showed element `0` of that flattening, which for a

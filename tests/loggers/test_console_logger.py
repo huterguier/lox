@@ -121,7 +121,7 @@ def test_detail_reports_partial_and_mixed_shapes():
             logs["only_first"] = jnp.ones(2)
         logger.callback(state, logdict(logs))
     assert details(logger)["[bold]loss[/bold]"] == "[dim]3 runs, mixed shapes[/dim]"
-    assert details(logger)["[bold]only_first[/bold]"] == "[dim]1/3 runs, (2,)[/dim]"
+    assert details(logger)["[bold]only_first[/bold]"] == "[dim]1 run, (2,)[/dim]"
     logger.close()
 
 

@@ -126,13 +126,8 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         self.live.update(table)
 
     def _detail(self, values: list[jax.Array]) -> str:
-        """Describes which runs a row covers and what each contributed."""
-        n_runs = len(self.logss)
-        if len(values) < n_runs:
-            runs = f"{len(values)}/{n_runs} runs"
-        else:
-            runs = f"{n_runs} run" + ("s" if n_runs != 1 else "")
-
+        """Describes how many runs a row covers and what each contributed."""
+        runs = f"{len(values)} run" + ("s" if len(values) != 1 else "")
         shapes = {value.shape for value in values}
         if len(shapes) > 1:
             return f"{runs}, mixed shapes"
