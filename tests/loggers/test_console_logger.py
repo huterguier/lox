@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import pytest
 from test_logger import TestLogger
 
+import lox
 from lox.logdict import logdict
 from lox.loggers import ConsoleLogger
 
@@ -20,6 +21,13 @@ def rendered(logger) -> dict[str, str]:
     table = logger.live.get_renderable()
     keys, values, _ = (column._cells for column in table.columns)
     return dict(zip(keys, values, strict=True))
+
+
+def details(logger) -> dict[str, str]:
+    """Maps each rendered row's key to its trailing detail cell."""
+    table = logger.live.get_renderable()
+    keys, _, cells = (column._cells for column in table.columns)
+    return dict(zip(keys, cells, strict=True))
 
 
 def test_divergent_keys_are_all_rendered():
@@ -68,6 +76,77 @@ def test_callback_without_init_does_not_raise():
     logger = ConsoleLogger()
     logger.callback(state, logdict({"x": jnp.ones(2)}))
     assert set(rendered(logger)) == {"[bold]x[/bold]"}
+    logger.close()
+
+
+def test_deviation_across_runs_ignores_within_run_variation():
+    # Each run falls 10 -> 1, but the runs barely differ from one another. The
+    # reported deviation must describe the disagreement between runs (~0.04), not
+    # the decline within them (~3.3).
+    logger = ConsoleLogger()
+    for seed in range(3):
+        state = logger.init(jax.random.key(seed))
+        values = jnp.array([10.0, 7.0, 4.0, 2.0, 1.0]) + seed * 0.05
+        logger.callback(state, logdict({"loss": values}))
+    assert rendered(logger)["[bold]loss[/bold]"] == "4.85 ± 0.04082"
+    logger.close()
+
+
+def test_single_run_deviation_covers_all_values():
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"loss": jnp.array([10.0, 7.0, 4.0, 2.0, 1.0])}))
+    assert rendered(logger)["[bold]loss[/bold]"] == "4.8 ± 3.311"
+    logger.close()
+
+
+def test_detail_reports_run_count_and_shape():
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.callback(state, logdict({"img": jnp.ones((5, 3, 4))}))
+    assert details(logger)["[bold]img[/bold]"] == "[dim]1 run, (5, 3, 4)[/dim]"
+
+    state = logger.init(jax.random.key(1))
+    logger.callback(state, logdict({"img": jnp.ones((5, 3, 4))}))
+    assert details(logger)["[bold]img[/bold]"] == "[dim]2 runs, each (5, 3, 4)[/dim]"
+    logger.close()
+
+
+def test_detail_reports_partial_and_mixed_shapes():
+    logger = ConsoleLogger()
+    for seed, shape in enumerate([(5,), (3,), (5,)]):
+        state = logger.init(jax.random.key(seed))
+        logs = {"loss": jnp.ones(shape)}
+        if seed == 0:
+            logs["only_first"] = jnp.ones(2)
+        logger.callback(state, logdict(logs))
+    assert details(logger)["[bold]loss[/bold]"] == "[dim]3 runs, mixed shapes[/dim]"
+    assert details(logger)["[bold]only_first[/bold]"] == "[dim]1/3 runs, (2,)[/dim]"
+    logger.close()
+
+
+def test_vmapped_init_yields_one_run_per_lane():
+    def f(x):
+        lox.log({"v": x.sum()})
+        return x
+
+    logger = ConsoleLogger()
+    keys = jnp.stack([jax.random.key(seed) for seed in range(3)])
+    states = jax.vmap(logger.init)(keys)
+    jax.vmap(lambda state, x: logger.spool(f, state)(x))(states, jnp.ones((3, 5)))
+    assert details(logger)["[bold]v[/bold]"] == "[dim]3 runs, each (1,)[/dim]"
+    logger.close()
+
+
+def test_shared_state_across_vmap_lanes_is_a_single_run():
+    def f(x):
+        lox.log({"v": x.sum()})
+        return x
+
+    logger = ConsoleLogger()
+    state = logger.init(jax.random.key(0))
+    logger.spool(jax.vmap(f), state)(jnp.ones((3, 5)))
+    assert details(logger)["[bold]v[/bold]"] == "[dim]1 run, (3, 1)[/dim]"
     logger.close()
 
 
