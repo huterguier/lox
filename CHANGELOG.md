@@ -12,6 +12,11 @@ version carries breaking changes.
 - `ConsoleLogger` groups rows into sections by the part of a key before its first `/`, so nested
   logs and `prefix=` produce a structured table instead of a flat list. Keys without a `/` stay at
   the top, above the named sections.
+- `ConsoleLogger(progress={"step": 10_000})` renders the named keys as progress bars above the
+  table rather than as rows. Progress is taken as the maximum logged value rather than the last,
+  since the leading axis has no reliable order and a counter only grows, and is averaged over runs
+  — exact under `vmap`, where the lanes advance in lockstep. Bars only advance mid-run under `tap`;
+  `spool` delivers its logs in a single callback once the function has returned.
 - Test coverage for `ConsoleLogger`, which previously had none.
 - `docs/the_sharp_bits.md` documents that `vmap` only adds a leading axis to logged values that
   actually depend on the mapped input, that the leading axis is not a time axis and should not be
