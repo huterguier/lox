@@ -10,6 +10,9 @@ version carries breaking changes.
 - `ConsoleLogger.close()` stops the live display and restores the terminal, and is registered with
   `atexit` so the cursor is unhidden even if the process exits without calling it.
 - Test coverage for `ConsoleLogger`, which previously had none.
+- `docs/the_sharp_bits.md` documents that `vmap` only adds a leading axis to logged values that
+  actually depend on the mapped input, that the leading axis is not a time axis and should not be
+  indexed positionally, and that aggregating loggers need one `init` per run to tell runs apart.
 
 ### Fixed
 - `ConsoleLogger` no longer stops updating forever when two runs log different keys. It used to
@@ -20,8 +23,14 @@ version carries breaking changes.
 - `ConsoleLogger` no longer indexes into the leading axis of a logged value. That axis flattens
   scan iterations, `vmap` lanes and separate `lox.log` call sites together, so no element of it
   identifies "the latest" value — the table showed element `0` of that flattening, which for a
-  spooled `scan` meant the first step's value was displayed and never updated. Rows now report
-  `mean ± std` over all elements, plus the number of values.
+  spooled `scan` meant the first step's value was displayed and never updated. Rows now report an
+  order-independent `mean ± std` instead, and name the shape each run contributed so the discarded
+  structure stays visible.
+- `ConsoleLogger`'s standard deviation is taken across runs when there is more than one, by
+  reducing each run before comparing them. It previously pooled every value from every run into one
+  bag, so the deviation was dominated by how much a metric moved *within* a run rather than by how
+  much the runs disagreed — for three near-identical seeds whose loss fell from 10 to 1, it
+  reported `± 3.311` where the actual seed-to-seed spread was `± 0.041`.
 - `ConsoleLogger` renders nested log dicts as `outer/inner` rows instead of raising `TypeError`.
 - `ConsoleLogger.init` reuses a single `rich` `Live` display across runs rather than starting a new
   one per run without stopping the old. Extra displays were dead on `rich` 15 and raised
