@@ -1,4 +1,5 @@
 import atexit
+import math
 import threading
 from dataclasses import dataclass
 
@@ -11,6 +12,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.progress import ProgressBar
 from rich.table import Table
+from rich.text import Text
 
 from lox.logdict import logdict
 from lox.loggers.logger import Logger, LoggerState
@@ -36,6 +38,11 @@ def _sections(keys: list[str]) -> dict[str, list[str]]:
     if not sections[""]:
         del sections[""]
     return sections
+
+
+_VALUE_ALLOWANCE = 16  # widest realistic "mean ± std"
+_GUTTER = 3
+_MAX_COLUMNS = 4
 
 
 def _runs(n: int) -> str:
@@ -169,7 +176,6 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         self.logss[id] |= logdict(_flatten(logs))
 
         self._start()
-        table = self._new_table()
         keys = {k for run in self.logss.values() for k in run} - set(self.progress)
         sections = _sections(sorted(keys))
 
@@ -179,11 +185,9 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         # reporting, or for a key only some of them log -- there is no single
         # count to state, so each row carries its own instead.
         counts = {len([run for run in self.logss.values() if k in run]) for k in keys}
-        for i, (section, section_keys) in enumerate(sections.items()):
-            if section:
-                if i:
-                    table.add_row("", "", "", "")
-                table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "", "")
+        rendered = []
+        for section, section_keys in sections.items():
+            rows = []
             for k in section_keys:
                 values = [run[k] for run in self.logss.values() if k in run]
                 # A complex value has no mean the terminal can show, so summarise
@@ -203,24 +207,81 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                 if v.size > 1:
                     summary += f" ± {_number(float(jnp.std(v)))}"
                 label = k.removeprefix(f"{section}/") if section else k
-                table.add_row(
-                    f"{'  ' if section else ''}{label}",
-                    summary,
-                    "",
-                    _shape(values) if len(counts) == 1 else _shape_and_runs(values),
+                rows.append(
+                    (
+                        f"{'  ' if section else ''}{label}",
+                        summary,
+                        _shape(values) if len(counts) == 1 else _shape_and_runs(values),
+                    )
                 )
+            rendered.append((section, rows))
+
+        grid = self._grid(rendered)
         bars = self._bars()
-        if bars.row_count and table.row_count:
-            table.add_row("", "", "", "")
         self.live.update(
             Panel(
-                Group(table, bars) if bars.row_count else table,
+                Group(grid, Text(""), bars) if bars.row_count else grid,
                 box=box.ROUNDED,
                 border_style="dim",
                 subtitle=_runs(counts.pop()) if len(counts) == 1 else None,
                 subtitle_align="right",
             )
         )
+
+    def _columns(self, sections: list) -> int:
+        """Chooses how many columns the metrics are laid out in.
+
+        The estimate deliberately uses only widths that do not move as values do
+        -- key names, shapes, and a fixed allowance for the number -- so that a
+        metric growing from ``5`` to ``1,234,567`` cannot make the whole layout
+        flip between column counts on successive refreshes.
+        """
+        rows = [row for _, section_rows in sections for row in section_rows]
+        if not rows:
+            return 1
+        width = (
+            max(len(label) for label, _, _ in rows)
+            + _VALUE_ALLOWANCE
+            + max(len(detail) for _, _, detail in rows)
+            + 4  # inter-column padding within a sub-table
+        )
+        available = self.console.width - 4  # panel border and padding
+        fits = available // (width + _GUTTER)
+        return max(1, min(_MAX_COLUMNS, len(sections), fits))
+
+    def _grid(self, sections: list) -> Table:
+        """Lays the sections out side by side, in order, column by column."""
+        n = self._columns(sections)
+        grid = Table.grid(expand=True, padding=(0, _GUTTER))
+        for _ in range(n):
+            grid.add_column(ratio=1)
+
+        heights = [len(rows) + (2 if section else 0) for section, rows in sections]
+        target = max(1, math.ceil(sum(heights) / n))
+        columns: list[list] = []
+        current: list = []
+        used = 0
+        for (section, rows), height in zip(sections, heights, strict=True):
+            if current and used + height > target and len(columns) < n - 1:
+                columns.append(current)
+                current, used = [], 0
+            current.append((section, rows))
+            used += height
+        columns.append(current)
+
+        tables = []
+        for column in columns:
+            table = self._new_table()
+            for i, (section, rows) in enumerate(column):
+                if section:
+                    if i:
+                        table.add_row("", "", "", "")
+                    table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "", "")
+                for label, summary, detail in rows:
+                    table.add_row(label, summary, "", detail)
+            tables.append(table)
+        grid.add_row(*tables, *[""] * (n - len(tables)))
+        return grid
 
     def _bars(self) -> Table:
         """Renders one bar per configured key, at the mean progress of the runs.
