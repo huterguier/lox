@@ -27,6 +27,11 @@ def subtitle(logger) -> str | None:
     return logger.live.get_renderable().subtitle
 
 
+def names(logger) -> list[str]:
+    """Lists the first column verbatim, including blank spacer rows."""
+    return list(table(logger).columns[0]._cells)
+
+
 def rendered(logger) -> dict[str, str]:
     """Maps each rendered row's key to its ``mean ± std`` cell."""
     keys, values, _ = (column._cells for column in table(logger).columns)
@@ -74,7 +79,7 @@ def test_nested_logs_are_flattened():
     state = logger.init(jax.random.key(0))
     logger.callback(state, logdict({"m": {"a": jnp.ones(3)}}))
     assert set(logger.logss["0"]) == {"m/a"}
-    assert list(rendered(logger)) == ["[bold cyan]m[/bold cyan]", "  [bold]a[/bold]"]
+    assert names(logger) == ["[bold cyan]m[/bold cyan]", "  [bold]a[/bold]"]
     logger.close()
 
 
@@ -214,11 +219,14 @@ def test_keys_are_grouped_into_sections():
             }
         ),
     )
-    # Ungrouped keys lead, then one header per section with its members indented.
-    assert list(rendered(logger)) == [
+    # Ungrouped keys lead, then one header per section with its members indented
+    # and a blank row separating each section from the previous one.
+    assert names(logger) == [
         "[bold]lr[/bold]",
+        "",
         "[bold cyan]eval[/bold cyan]",
         "  [bold]acc[/bold]",
+        "",
         "[bold cyan]train[/bold cyan]",
         "  [bold]loss[/bold]",
     ]
@@ -229,7 +237,7 @@ def test_section_headers_are_omitted_without_nesting():
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
     logger.callback(state, logdict({"a": jnp.ones(1), "b": jnp.ones(1)}))
-    assert list(rendered(logger)) == ["[bold]a[/bold]", "[bold]b[/bold]"]
+    assert names(logger) == ["[bold]a[/bold]", "[bold]b[/bold]"]
     logger.close()
 
 
@@ -237,7 +245,7 @@ def test_deeper_nesting_groups_on_the_first_segment():
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
     logger.callback(state, logdict({"train": {"opt": {"lr": jnp.ones(1)}}}))
-    assert list(rendered(logger)) == [
+    assert names(logger) == [
         "[bold cyan]train[/bold cyan]",
         "  [bold]opt/lr[/bold]",
     ]
