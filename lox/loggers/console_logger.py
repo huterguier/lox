@@ -119,7 +119,10 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         return ConsoleLoggerState(key=key, id=id)
 
     def _new_table(self) -> Table:
-        table = Table(box=None, expand=True, show_header=False, pad_edge=False)
+        # expand=False keeps the value next to its name: the slack goes to the
+        # right of the row rather than between the two, which matters once there
+        # are enough rows to have to track one across the panel.
+        table = Table(box=None, expand=False, show_header=False, pad_edge=False)
         table.add_column(no_wrap=True)
         table.add_column(justify="right", no_wrap=True)
         table.add_column(justify="right", style="dim", no_wrap=True)
@@ -158,8 +161,10 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         counts = {len([run for run in self.logss.values() if k in run]) for k in keys}
         for i, (section, section_keys) in enumerate(sections.items()):
             if section:
+                if i:
+                    table.add_row("", "", "")
                 table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "")
-            for j, k in enumerate(section_keys):
+            for k in section_keys:
                 values = [run[k] for run in self.logss.values() if k in run]
                 if len(values) > 1:
                     # Runs are separate dict entries rather than an array axis, so
@@ -176,7 +181,6 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                     f"{'  ' if section else ''}[bold]{label}[/bold]",
                     summary,
                     _shape(values) if len(counts) == 1 else _shape_and_runs(values),
-                    end_section=j == len(section_keys) - 1 and i < len(sections) - 1,
                 )
         bars = self._bars()
         self.live.update(
