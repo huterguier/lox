@@ -178,12 +178,14 @@ def test_shape_is_per_row_and_run_count_is_in_the_subtitle():
         ((1, 4), "(4,)"),  # one vector event, as tap delivers it
         ((5,), "(5,)"),  # five scalar events, as spool of a scan delivers them
         ((5, 4), "(5, 4)"),
-        ((3, 1), "(3,)"),  # fused vmap lanes: the lanes are real, the event is not
-        ((15, 1, 3, 4), "(15, 3, 4)"),
-        ((1, 1), ""),
+        ((1, 1, 4), "(1, 4)"),  # the value's own size-1 axis survives
+        # vmap fused into the array rather than dispatched per lane: the leading
+        # axis is not the event, so nothing is dropped.
+        ((15, 1), "(15, 1)"),
+        ((15, 1, 3, 4), "(15, 1, 3, 4)"),
     ],
 )
-def test_singleton_axes_are_dropped_from_shapes(shape, expected):
+def test_only_the_leading_event_axis_is_dropped(shape, expected):
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
     logger.callback(state, logdict({"v": jnp.ones(shape)}))
@@ -253,9 +255,9 @@ def test_shared_state_across_vmap_lanes_is_a_single_run():
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
     logger.spool(jax.vmap(f), state)(jnp.ones((3, 5)))
-    # (3, 1): three fused lanes, one event each. The event axis is dropped, but
-    # the lanes are real values and must survive.
-    assert details(logger)["v"] == "(3,)"
+    # Sharing one state fuses the lanes into the array instead of dispatching the
+    # callback per lane, so the leading axis is lanes and nothing is dropped.
+    assert details(logger)["v"] == "(3, 1)"
     assert subtitle(logger) == "1 run"
     logger.close()
 
