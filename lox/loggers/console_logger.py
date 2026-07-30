@@ -237,7 +237,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             if key in run
         ]
 
-    def layout(self) -> tuple[list[Section], str | None]:
+    def _layout(self) -> tuple[list[Section], str | None]:
         """The sections to draw, and the subtitle summarising them.
 
         The run count is normally the same on every row, so it is stated once in
@@ -265,7 +265,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         subtitle = _runs(next(iter(counts))) if len(counts) == 1 else None
         return sections, subtitle
 
-    def progress_bars(self) -> list[Bar]:
+    def _progress_bars(self) -> list[Bar]:
         """How far each configured progress key has advanced.
 
         Progress is the maximum logged value rather than the last: the leading
@@ -288,7 +288,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         self.logss[run_id] |= logdict(_flatten(logs))
         self._start()
 
-        sections, subtitle = self.layout()
+        sections, subtitle = self._layout()
         grid = self._grid(sections)
         bars = self._bars()
         self.live.update(
@@ -391,7 +391,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         table.add_column(no_wrap=True)
         table.add_column(ratio=1)
         table.add_column(justify="right", style="dim", no_wrap=True)
-        for bar in self.progress_bars():
+        for bar in self._progress_bars():
             table.add_row(
                 bar.label,
                 ProgressBar(
