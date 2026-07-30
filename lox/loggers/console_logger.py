@@ -26,11 +26,22 @@ _PANEL_CHROME = 4
 
 
 class Row(NamedTuple):
-    """One rendered metric: its name, what is shown beside it, and its statistic."""
+    """One rendered metric: its name, what is shown beside it, and its statistic.
+
+    The label carries no section indent; that belongs to the rendering.
+    """
 
     label: str
     detail: str
     summary: str
+
+
+class Bar(NamedTuple):
+    """One progress bar: its key and how far it has gone."""
+
+    label: str
+    completed: float
+    total: float
 
 
 Section = tuple[str, list[Row]]
@@ -226,38 +237,58 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             if key in run
         ]
 
-    def _render(self, logger_state: ConsoleLoggerState, logs: logdict):
-        """Rebuilds the panel from every run recorded so far.
+    def layout(self) -> tuple[list[Section], str | None]:
+        """The sections to draw, and the subtitle summarising them.
 
         The run count is normally the same on every row, so it is stated once in
         the subtitle rather than repeated down a column. When the counts disagree
         -- while runs are still reporting, or for a key only some of them log --
-        there is no single count to state and each row carries its own instead.
+        there is no single count to state, so the subtitle is dropped and each row
+        carries its own instead.
         """
+        keys = {k for run in self.logss.values() for k in run} - set(self.progress)
+        counts = {len(self._values(key)) for key in keys}
+        show_runs = len(counts) > 1
+
+        sections: list[Section] = []
+        for section, section_keys in _sections(sorted(keys)).items():
+            rows = [
+                Row(
+                    label=key.removeprefix(f"{section}/") if section else key,
+                    detail=_detail(self._values(key), show_runs=show_runs),
+                    summary=_summarise(self._values(key)),
+                )
+                for key in section_keys
+            ]
+            sections.append((section, rows))
+
+        subtitle = _runs(next(iter(counts))) if len(counts) == 1 else None
+        return sections, subtitle
+
+    def progress_bars(self) -> list[Bar]:
+        """How far each configured progress key has advanced.
+
+        Progress is the maximum logged value rather than the last: the leading
+        axis has no reliable order, and a counter only ever grows. Under ``vmap``
+        the lanes advance in lockstep, so their mean is simply the shared position.
+        """
+        bars = []
+        for key, total in self.progress.items():
+            values = self._values(key)
+            if not values:
+                continue
+            completed = float(jnp.mean(jnp.stack([jnp.max(value) for value in values])))
+            bars.append(Bar(label=key, completed=completed, total=total))
+        return bars
+
+    def _render(self, logger_state: ConsoleLoggerState, logs: logdict):
+        """Records the logs, then redraws the panel from every run so far."""
         run_id = str(logger_state.id)
         self.logss.setdefault(run_id, logdict({}))
         self.logss[run_id] |= logdict(_flatten(logs))
         self._start()
 
-        keys = {k for run in self.logss.values() for k in run} - set(self.progress)
-        counts = {len(self._values(k)) for k in keys}
-        show_runs = len(counts) > 1
-
-        sections: list[Section] = []
-        for section, section_keys in _sections(sorted(keys)).items():
-            rows = []
-            for key in section_keys:
-                values = self._values(key)
-                label = key.removeprefix(f"{section}/") if section else key
-                rows.append(
-                    Row(
-                        label=f"{'  ' if section else ''}{label}",
-                        detail=_detail(values, show_runs=show_runs),
-                        summary=_summarise(values),
-                    )
-                )
-            sections.append((section, rows))
-
+        sections, subtitle = self.layout()
         grid = self._grid(sections)
         bars = self._bars()
         self.live.update(
@@ -265,7 +296,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                 Group(grid, Text(""), bars) if bars.row_count else grid,
                 box=box.ROUNDED,
                 border_style="dim",
-                subtitle=_runs(next(iter(counts))) if len(counts) == 1 else None,
+                subtitle=subtitle,
                 subtitle_align="right",
             )
         )
@@ -298,9 +329,10 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         rows = [row for _, section_rows in sections for row in section_rows]
         if not rows:
             return 1
+        indents = {row: 2 if section else 0 for section, rs in sections for row in rs}
         width = (
-            max(len(label) for label, _, _ in rows)
-            + max(len(detail) for _, detail, _ in rows)
+            max(len(row.label) + indents[row] for row in rows)
+            + max(len(row.detail) for row in rows)
             + _VALUE_ALLOWANCE
             + _CELL_PADDING
         )
@@ -342,39 +374,32 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                     if i:
                         table.add_row("", "", "", "")
                     table.add_row(f"[bold cyan]{section}[/bold cyan]", "", "", "")
-                for label, detail, summary in rows:
-                    table.add_row(label, detail, summary, "")
+                for row in rows:
+                    label = f"  {row.label}" if section else row.label
+                    table.add_row(label, row.detail, row.summary, "")
             tables.append(table)
         grid.add_row(*tables, *[""] * (n - len(tables)))
         return grid
 
     def _bars(self) -> Table:
-        """Renders one bar per configured key, at the mean progress of the runs.
+        """Draws the progress bars.
 
-        Progress is the maximum logged value rather than the last: the leading
-        axis has no reliable order, and a counter only ever grows. Under ``vmap``
-        the lanes advance in lockstep, so their mean is simply the shared position.
-
-        Bars live in their own table so the metric columns are not stretched to
+        They live in their own table so the metric columns are not stretched to
         accommodate a full-width bar.
         """
         table = Table(box=None, expand=True, show_header=False, pad_edge=False)
         table.add_column(no_wrap=True)
         table.add_column(ratio=1)
         table.add_column(justify="right", style="dim", no_wrap=True)
-        for key, total in self.progress.items():
-            values = self._values(key)
-            if not values:
-                continue
-            completed = float(jnp.mean(jnp.stack([jnp.max(value) for value in values])))
+        for bar in self.progress_bars():
             table.add_row(
-                key,
+                bar.label,
                 ProgressBar(
-                    total=total,
-                    completed=min(completed, total),
+                    total=bar.total,
+                    completed=min(bar.completed, bar.total),
                     complete_style="cyan",
                     finished_style="green",
                 ),
-                f"{completed:,.0f}/{total:,.0f}",
+                f"{bar.completed:,.0f}/{bar.total:,.0f}",
             )
         return table

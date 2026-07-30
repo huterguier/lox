@@ -4,8 +4,7 @@ import time
 import jax
 import jax.numpy as jnp
 import pytest
-from rich.console import Console, Group
-from rich.text import Text
+from rich.console import Console
 from test_logger import TestLogger
 
 import lox
@@ -21,47 +20,45 @@ class TestConsoleLogger(TestLogger):
         console_logger.close()
 
 
-def tables(logger) -> list:
-    """Returns the metric sub-tables, left to right, from inside the panel."""
-    renderable = logger.live.get_renderable().renderable
-    grid = renderable.renderables[0] if isinstance(renderable, Group) else renderable
+def sections(logger) -> list[tuple[str, list[str]]]:
+    """The section names and the keys under each, in the order they are drawn."""
     return [
-        cell
-        for column in grid.columns
-        for cell in column._cells
-        if hasattr(cell, "columns")
+        (section, [row.label for row in rows]) for section, rows in logger.layout()[0]
     ]
-
-
-def _column(logger, index: int) -> list[str]:
-    """Concatenates one column's cells across every sub-table, in reading order."""
-    return [
-        cell for table in tables(logger) for cell in _plain(table.columns[index]._cells)
-    ]
-
-
-def subtitle(logger) -> str | None:
-    return logger.live.get_renderable().subtitle
-
-
-def _plain(cells) -> list[str]:
-    """Strips styling so assertions do not depend on the palette."""
-    return [Text.from_markup(cell).plain for cell in cells]
 
 
 def names(logger) -> list[str]:
-    """Lists the first column verbatim, including blank spacer rows."""
-    return _column(logger, 0)
+    """Every row label, ignoring which section it sits in."""
+    return [row.label for _, rows in logger.layout()[0] for row in rows]
+
+
+def subtitle(logger) -> str | None:
+    return logger.layout()[1]
+
+
+def _rows(logger) -> list:
+    return [row for _, rows in logger.layout()[0] for row in rows]
 
 
 def rendered(logger) -> dict[str, str]:
-    """Maps each rendered row's key to its ``mean ± std`` cell."""
-    return dict(zip(_column(logger, 0), _column(logger, 2), strict=True))
+    """Maps each row's key to its ``mean ± std`` cell."""
+    return {row.label: row.summary for row in _rows(logger)}
 
 
 def details(logger) -> dict[str, str]:
-    """Maps each rendered row's key to the detail shown beside it."""
-    return dict(zip(_column(logger, 0), _column(logger, 1), strict=True))
+    """Maps each row's key to the detail shown beside it."""
+    return {row.label: row.detail for row in _rows(logger)}
+
+
+def bars(logger) -> dict[str, tuple[float, float]]:
+    """Maps each bar's key to its ``(completed, total)``."""
+    return {bar.label: (bar.completed, bar.total) for bar in logger.progress_bars()}
+
+
+def columns(logger) -> int:
+    """How many columns the sections would be laid out in."""
+    laid_out = logger.layout()[0]
+    return len(logger._pack(laid_out, logger._columns(laid_out)))
 
 
 def test_divergent_keys_are_all_rendered():
@@ -99,7 +96,7 @@ def test_nested_logs_are_flattened():
     state = logger.init(jax.random.key(0))
     logger.callback(state, logdict({"m": {"a": jnp.ones(3)}}))
     assert set(logger.logss["0"]) == {"m/a"}
-    assert names(logger) == ["m", "  a"]
+    assert sections(logger) == [("m", ["a"])]
     logger.close()
 
 
@@ -264,7 +261,6 @@ def test_shared_state_across_vmap_lanes_is_a_single_run():
 
 def test_keys_are_grouped_into_sections():
     logger = ConsoleLogger()
-    logger.console = Console(width=40)  # narrow enough to force a single column
     state = logger.init(jax.random.key(0))
     logger.callback(
         state,
@@ -276,17 +272,8 @@ def test_keys_are_grouped_into_sections():
             }
         ),
     )
-    # Ungrouped keys lead, then one header per section with its members indented
-    # and a blank row separating each section from the previous one.
-    assert names(logger) == [
-        "lr",
-        "",
-        "eval",
-        "  acc",
-        "",
-        "train",
-        "  loss",
-    ]
+    # Ungrouped keys lead, then the named sections in order.
+    assert sections(logger) == [("", ["lr"]), ("eval", ["acc"]), ("train", ["loss"])]
     logger.close()
 
 
@@ -305,7 +292,7 @@ def test_wide_terminals_lay_sections_out_in_columns():
     logger = ConsoleLogger()
     logger.console = Console(width=200)
     logger.callback(logger.init(jax.random.key(0)), _logs())
-    assert len(tables(logger)) > 1
+    assert columns(logger) > 1
     logger.close()
 
 
@@ -313,7 +300,7 @@ def test_narrow_terminals_stay_in_one_column():
     logger = ConsoleLogger()
     logger.console = Console(width=40)
     logger.callback(logger.init(jax.random.key(0)), _logs())
-    assert len(tables(logger)) == 1
+    assert columns(logger) == 1
     logger.close()
 
 
@@ -323,7 +310,7 @@ def test_column_layout_preserves_section_order():
     narrow.console, wide.console = Console(width=40), Console(width=200)
     for logger in (narrow, wide):
         logger.callback(logger.init(jax.random.key(0)), _logs())
-    assert len(tables(wide)) > 1
+    assert columns(wide) > 1
     assert [name for name in names(wide) if name] == [
         name for name in names(narrow) if name
     ]
@@ -340,7 +327,7 @@ def test_column_count_is_stable_as_values_grow():
     counts = []
     for magnitude in (1.0, 1e3, 1e6, 1e9):
         logger.callback(state, _logs() | logdict({"lr": jnp.ones(1) * magnitude}))
-        counts.append(len(tables(logger)))
+        counts.append(columns(logger))
     assert len(set(counts)) == 1
     logger.close()
 
@@ -357,20 +344,8 @@ def test_deeper_nesting_groups_on_the_first_segment():
     logger = ConsoleLogger()
     state = logger.init(jax.random.key(0))
     logger.callback(state, logdict({"train": {"opt": {"lr": jnp.ones(1)}}}))
-    assert names(logger) == [
-        "train",
-        "  opt/lr",
-    ]
+    assert sections(logger) == [("train", ["opt/lr"])]
     logger.close()
-
-
-def bars(logger) -> dict[str, tuple[float, float]]:
-    """Maps each rendered bar's key to its ``(completed, total)``."""
-    renderable = logger.live.get_renderable().renderable
-    if not isinstance(renderable, Group):
-        return {}
-    keys, columns, _ = (column._cells for column in renderable.renderables[-1].columns)
-    return {k: (bar.completed, bar.total) for k, bar in zip(keys, columns, strict=True)}
 
 
 def test_progress_key_is_barred_and_kept_out_of_the_table():
