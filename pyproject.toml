@@ -14,7 +14,7 @@ authors = [
 ]
 dependencies = [
   "jax>=0.7.0",
-  "rich",
+  "rich>=10.8.0",  # ConsoleLogger needs rich.console.Group
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
