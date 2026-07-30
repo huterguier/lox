@@ -23,21 +23,21 @@ class TestConsoleLogger(TestLogger):
 def sections(logger) -> list[tuple[str, list[str]]]:
     """The section names and the keys under each, in the order they are drawn."""
     return [
-        (section, [row.label for row in rows]) for section, rows in logger.layout()[0]
+        (section, [row.label for row in rows]) for section, rows in logger._layout()[0]
     ]
 
 
 def names(logger) -> list[str]:
     """Every row label, ignoring which section it sits in."""
-    return [row.label for _, rows in logger.layout()[0] for row in rows]
+    return [row.label for _, rows in logger._layout()[0] for row in rows]
 
 
 def subtitle(logger) -> str | None:
-    return logger.layout()[1]
+    return logger._layout()[1]
 
 
 def _rows(logger) -> list:
-    return [row for _, rows in logger.layout()[0] for row in rows]
+    return [row for _, rows in logger._layout()[0] for row in rows]
 
 
 def rendered(logger) -> dict[str, str]:
@@ -52,12 +52,12 @@ def details(logger) -> dict[str, str]:
 
 def bars(logger) -> dict[str, tuple[float, float]]:
     """Maps each bar's key to its ``(completed, total)``."""
-    return {bar.label: (bar.completed, bar.total) for bar in logger.progress_bars()}
+    return {bar.label: (bar.completed, bar.total) for bar in logger._progress_bars()}
 
 
 def columns(logger) -> int:
     """How many columns the sections would be laid out in."""
-    laid_out = logger.layout()[0]
+    laid_out = logger._layout()[0]
     return len(logger._pack(laid_out, logger._columns(laid_out)))
 
 

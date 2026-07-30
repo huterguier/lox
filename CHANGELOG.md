@@ -23,9 +23,6 @@ version carries breaking changes.
   so a metric growing from `5` to `1,234,567` cannot make the layout flip between column counts on
   successive refreshes. Sections are packed in order, column by column, so reading down each column
   in turn matches the single-column order; columns may therefore differ in height.
-- `ConsoleLogger.layout()` and `ConsoleLogger.progress_bars()` return what the panel is about to
-  show — the sections, their rows, the subtitle, and each bar's progress — separating the figures
-  from the `rich` rendering that displays them.
 - Test coverage for `ConsoleLogger`, which previously had none.
 - `docs/the_sharp_bits.md` documents that `Logger.tap` cannot tell runs apart under `jit`/`vmap` —
   it captures the logger state in a closure, so it never becomes concrete per lane — and that
