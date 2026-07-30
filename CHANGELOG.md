@@ -31,6 +31,11 @@ version carries breaking changes.
   actually depend on the mapped input, that the leading axis is not a time axis and should not be
   indexed positionally, and that aggregating loggers need one `init` per run to tell runs apart.
 
+### Changed
+- `rich` is now constrained to `>=10.8.0`, having previously been unconstrained. That is the
+  measured floor: `rich.console.Group` does not exist before 10.6, and 10.7 imports but renders
+  incorrectly. The full suite passes on 10.8.0 and on 15.0.0.
+
 ### Fixed
 - `ConsoleLogger` no longer stops updating forever when two runs log different keys. It used to
   stack all runs into one array to compute `mean ± std`, which requires identical keys across runs;
