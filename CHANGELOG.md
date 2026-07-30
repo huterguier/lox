@@ -6,6 +6,8 @@ version carries breaking changes.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-30
+
 ### Added
 - `ConsoleLogger.close()` stops the live display and restores the terminal, and is registered with
   `atexit` so the cursor is unhidden even if the process exits without calling it.
