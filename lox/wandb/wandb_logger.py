@@ -1,9 +1,8 @@
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 import jax
 
-from lox import logdict, tap
+from lox import logdict
 from lox.loggers.logger import Logger, LoggerState
 from lox.wandb.core import WandbRun, init, log
 
@@ -25,21 +24,5 @@ class WandbLogger(Logger[WandbLoggerState]):
         wandb_run = init(key, **self.wandb_kwargs)
         return WandbLoggerState(wandb_run=wandb_run)
 
-    def log(
-        self, logger_state: WandbLoggerState, logs: logdict, prefix: str = ""
-    ) -> None:
-        if prefix:
-            logs = logs.prefix(prefix)
+    def callback(self, logger_state: WandbLoggerState, logs: logdict) -> None:
         log(logger_state.wandb_run, logs)
-
-    def tap(
-        self,
-        f: Callable,
-        logger_state: WandbLoggerState,
-        argnames: Sequence[str] | None = None,
-        prefix: str = "",
-    ) -> Callable:
-        def callback(logs: logdict):
-            log(logger_state.wandb_run, logs)
-
-        return tap(f, callback=callback, argnames=argnames, prefix=prefix)
