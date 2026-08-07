@@ -1,6 +1,7 @@
 import atexit
 import math
 import threading
+import time
 from dataclasses import dataclass
 from typing import NamedTuple
 
@@ -37,11 +38,12 @@ class Row(NamedTuple):
 
 
 class Bar(NamedTuple):
-    """One progress bar: its key and how far it has gone."""
+    """One progress bar: its key, how far it has gone, and its timing."""
 
     label: str
     completed: float
     total: float
+    eta: float | None
 
 
 Section = tuple[str, list[Row]]
@@ -93,6 +95,22 @@ def _number(value: float) -> str:
     digits, which suits both ordinary metrics and very small ones.
     """
     return f"{value:,.0f}" if abs(value) >= 1e4 else f"{value:.4g}"
+
+
+def _duration(seconds: float) -> str:
+    """Formats a duration as ``1h02m``, ``3m12s`` or ``45s``, whichever fits.
+
+    Progress speed is rough enough that sub-second precision would be noise, so
+    the smallest unit shown is seconds and everything below that is dropped.
+    """
+    seconds = max(0, round(seconds))
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m"
+    if minutes:
+        return f"{minutes}m{seconds:02d}s"
+    return f"{seconds}s"
 
 
 def _shape(values: list[jax.Array]) -> str:
@@ -185,6 +203,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         self.live = None
         self.progress = dict(progress or {})
         self._lock = threading.Lock()
+        self._bar_starts: dict[str, float] = {}
 
     def init(self, key: jax.Array) -> ConsoleLoggerState:
         def callback(key):
@@ -266,11 +285,17 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         return sections, subtitle
 
     def _progress_bars(self) -> list[Bar]:
-        """How far each configured progress key has advanced.
+        """How far each configured progress key has advanced, and its ETA.
 
         Progress is the maximum logged value rather than the last: the leading
         axis has no reliable order, and a counter only ever grows. Under ``vmap``
         the lanes advance in lockstep, so their mean is simply the shared position.
+
+        The ETA is extrapolated from the average rate since the bar's first
+        update -- wall-clock time elapsed divided into progress made -- rather
+        than from a fixed step cost, since steps commonly vary in cost (e.g. an
+        eval pass every N steps) and a moving-window rate would just add jitter
+        for little benefit here.
         """
         bars = []
         for key, total in self.progress.items():
@@ -278,7 +303,14 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             if not values:
                 continue
             completed = float(jnp.mean(jnp.stack([jnp.max(value) for value in values])))
-            bars.append(Bar(label=key, completed=completed, total=total))
+            start = self._bar_starts.setdefault(key, time.monotonic())
+            elapsed = time.monotonic() - start
+            eta = (
+                (total - completed) * elapsed / completed
+                if completed > 0 and elapsed > 0
+                else None
+            )
+            bars.append(Bar(label=key, completed=completed, total=total, eta=eta))
         return bars
 
     def _render(self, logger_state: ConsoleLoggerState, logs: logdict):
@@ -392,6 +424,13 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         table.add_column(ratio=1)
         table.add_column(justify="right", style="dim", no_wrap=True)
         for bar in self._progress_bars():
+            count = f"{bar.completed:,.0f}/{bar.total:,.0f}"
+            if bar.completed >= bar.total:
+                stat = count
+            elif bar.eta is not None:
+                stat = f"{count} · eta {_duration(bar.eta)}"
+            else:
+                stat = f"{count} · eta --"
             table.add_row(
                 bar.label,
                 ProgressBar(
@@ -400,6 +439,6 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                     complete_style="cyan",
                     finished_style="green",
                 ),
-                f"{bar.completed:,.0f}/{bar.total:,.0f}",
+                stat,
             )
         return table
