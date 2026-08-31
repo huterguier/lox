@@ -46,6 +46,12 @@ class TestLogger(ABC):
         _, logs = lox.spool(f)(x)
         logger.log(logger_state, logs)
 
+    def test_close(self, logger, key, f, x):
+        logger_state = logger.init(key)
+        _, logs = lox.spool(f)(x)
+        logger_state = logger.log(logger_state, logs)
+        logger.close(logger_state)
+
     def test_spool_argnames(self, logger, key, x):
         logger_state = logger.init(key)
         collected = []

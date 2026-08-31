@@ -29,3 +29,9 @@ class MultiLogger(Logger[MultiLoggerState]):
             self.loggers, logger_state.logger_states, strict=True
         ):
             sub_logger.callback(sub_logger_state, logs)
+
+    def close(self, logger_state: MultiLoggerState) -> None:
+        for sub_logger, sub_logger_state in zip(
+            self.loggers, logger_state.logger_states, strict=True
+        ):
+            sub_logger.close(sub_logger_state)

@@ -36,6 +36,20 @@ def test_init_creates_a_wandb_run(mock_wandb):
     assert len(mock_wandb) == 1
 
 
+def test_close_finishes_the_run(mock_wandb):
+    logger = WandbLogger(project="test")
+    state = logger.init(jax.random.key(0))
+    logger.close(state)
+    mock_wandb[0].finish.assert_called_once()
+
+
+def test_a_non_string_id_is_coerced(mock_wandb):
+    # a SLURM job id resolved through OmegaConf arrives as an int, which
+    # wandb's pydantic Settings rejects
+    logger = WandbLogger(project="test", id=129884)
+    assert logger.wandb_kwargs["id"] == "129884"
+
+
 def test_spool_logs_data_to_the_run(mock_wandb):
     logger = WandbLogger(project="test")
     state = logger.init(jax.random.key(0))

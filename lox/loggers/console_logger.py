@@ -228,8 +228,13 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             self.live.start()
             atexit.register(self.close)
 
-    def close(self) -> None:
-        """Stops the live display and restores the terminal."""
+    def close(self, logger_state: ConsoleLoggerState | None = None) -> None:
+        """Stops the live display and restores the terminal.
+
+        `logger_state` is unused (the display lives on the instance) and
+        optional, so `atexit.register(self.close)` above and existing
+        no-argument callers keep working.
+        """
         if self.live is not None:
             self.live.stop()
             self.live = None

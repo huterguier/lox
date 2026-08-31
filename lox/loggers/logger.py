@@ -39,6 +39,15 @@ class Logger(Generic[LoggerStateT], ABC):
     def callback(self, logger_state: LoggerStateT, logs: logdict):
         pass
 
+    def close(self, logger_state: LoggerStateT) -> None:
+        """Release whatever `init` acquired, after the last `log`.
+
+        The default releases nothing; loggers with real teardown override it
+        (`ConsoleLogger` stops its live display, `WandbLogger` finishes its
+        run), and `MultiLogger` fans it out — so a caller can end a run with
+        one `logger.close(logger_state)` regardless of composition.
+        """
+
     def spool(
         self,
         f: Callable,
