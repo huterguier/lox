@@ -2,10 +2,11 @@ from dataclasses import dataclass
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from lox.utils.typing import Array
 
-DEFAULT_PADDING = jnp.uint8(255)
+DEFAULT_PADDING = np.uint8(255)
 
 
 @jax.tree_util.register_dataclass
