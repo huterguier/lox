@@ -59,7 +59,7 @@ def f(xs):
             loss = (difference) ** 2
             return loss
         gradient = jax.grad(loss)(mean)
-        params = jax.tree_util.tree_map(lambda p, g: p - 1e-2 * g, mean, gradient)
+        params = jax.tree.map(lambda p, g: p - 1e-2 * g, mean, gradient)
         return params, None
     mean = 0.0
     mean, _ = jax.lax.scan(step, mean, xs)
@@ -87,7 +87,7 @@ def f(xs):
             lox.log({"difference": difference})
             return loss
         gradient = jax.grad(loss)(mean)
-        params = jax.tree_util.tree_map(lambda p, g: p - 1e-2 * g, mean, gradient)
+        params = jax.tree.map(lambda p, g: p - 1e-2 * g, mean, gradient)
         return params, None
     mean = 0.0
     mean, _ = jax.lax.scan(step, mean, xs)

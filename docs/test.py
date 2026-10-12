@@ -12,7 +12,7 @@ def f(xs):
             return loss
 
         gradient = jax.grad(loss)(mean)
-        params = jax.tree_util.tree_map(lambda p, g: p - 1e-2 * g, mean, gradient)
+        params = jax.tree.map(lambda p, g: p - 1e-2 * g, mean, gradient)
         return params, None
 
     mean = 0.0

@@ -40,11 +40,11 @@ def log(data: dict[str, Any], tags: Iterable[str] = ()) -> logdict:
         transformation such as :attr:`spool` or :attr:`tap`.
 
     """
-    data_logdict = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 0), data)
+    data_logdict = jax.tree.map(lambda x: jnp.expand_dims(x, 0), data)
     logs = logdict(data_logdict)
-    logs_flat, structure = jax.tree_util.tree_flatten(logs)
+    logs_flat, structure = jax.tree.flatten(logs)
     _ = lox_p.bind(*logs_flat, tags=tuple(tags), structure=structure)
-    return jax.tree_util.tree_unflatten(structure, logs_flat)
+    return jax.tree.unflatten(structure, logs_flat)
 
 
 @lox_p.def_impl

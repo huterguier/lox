@@ -23,11 +23,11 @@ class logdict(dict[str, Any]):
     """
 
     def tree_flatten(self) -> tuple:
-        return jax.tree_util.tree_flatten(dict(self))
+        return jax.tree.flatten(dict(self))
 
     @classmethod
     def tree_unflatten(cls, structure, logs_flat) -> "logdict":
-        return cls(jax.tree_util.tree_unflatten(structure, logs_flat))
+        return cls(jax.tree.unflatten(structure, logs_flat))
 
     def __or__(self, other):
         """Merges two logdicts, overwriting values from self with values from other."""

@@ -67,7 +67,7 @@ def tap(
 
     @wraps(fun)
     def wrapped(*args, **kwargs):
-        args_flat, structure = jax.tree_util.tree_flatten((args, kwargs))
+        args_flat, structure = jax.tree.flatten((args, kwargs))
         static_argnums = tuple(i for i, arg in enumerate(args_flat) if is_hashable(arg))
         closed_jaxpr, out_shape = make_tapped_jaxpr(
             flatten(fun, structure),
@@ -78,11 +78,11 @@ def tap(
             prefix=prefix,
         )(*args_flat)
         dynamic_args_flat = tuple(arg for arg in args_flat if not is_hashable(arg))
-        out_structure = jax.tree_util.tree_structure(out_shape)
+        out_structure = jax.tree.structure(out_shape)
         out_flat = jax.core.eval_jaxpr(
             closed_jaxpr.jaxpr, closed_jaxpr.literals, *dynamic_args_flat
         )
-        out = jax.tree_util.tree_unflatten(out_structure, out_flat)
+        out = jax.tree.unflatten(out_structure, out_flat)
         return out
 
     return wrapped

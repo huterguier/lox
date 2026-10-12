@@ -75,9 +75,7 @@ def spool(
         out_spooled_flat = jax.core.eval_jaxpr(
             closed_jaxpr.jaxpr, closed_jaxpr.literals, *dynamic_args_flat
         )
-        out, logs = jax.tree_util.tree_unflatten(
-            out_spooled_structure, out_spooled_flat
-        )
+        out, logs = jax.tree.unflatten(out_spooled_structure, out_spooled_flat)
         if interval is not None:
             logs = logs.slice[::interval]
         if reduce is not None:
@@ -123,7 +121,7 @@ def make_spooled_jaxpr(
             closed_jaxpr.jaxpr, argnames=argnames, tags=tags, unify=unify
         )
         closed_jaxpr = ClosedJaxpr(new_jaxpr, closed_jaxpr.consts)
-        logs_shape = jax.tree_util.tree_map(
+        logs_shape = jax.tree.map(
             lambda v: ShapeDtypeStruct(v.aval.shape, v.aval.dtype), logs
         )
         if not keep_logs:
@@ -209,8 +207,8 @@ def spool_jaxpr(
         if not logs_jaxpr:
             return eqn, logdict({}), []
 
-        logs_jaxpr_avals = jax.tree_util.tree_map(lambda x: x.aval, logs_jaxpr)
-        logs_scan_avals = jax.tree_util.tree_map(
+        logs_jaxpr_avals = jax.tree.map(lambda x: x.aval, logs_jaxpr)
+        logs_scan_avals = jax.tree.map(
             lambda aval: ShapedArray((eqn.params["length"],) + aval.shape, aval.dtype),
             logs_jaxpr_avals,
         )
@@ -371,7 +369,7 @@ def spool_jaxpr(
             lambda x: Var(aval=ShapedArray(x.aval.shape, x.aval.dtype)), logs_call_jaxpr
         )
         new_eqn = eqn.replace(
-            outvars=[*eqn.outvars, *jax.tree_util.tree_leaves(logs_eqn)],
+            outvars=[*eqn.outvars, *jax.tree.leaves(logs_eqn)],
             params={**eqn.params, "call_jaxpr": new_call_jaxpr},
         )
         return new_eqn, logs_eqn, []
@@ -388,7 +386,7 @@ def spool_jaxpr(
             logs_remat_jaxpr,
         )
         new_eqn = eqn.replace(
-            outvars=[*eqn.outvars, *jax.tree_util.tree_leaves(logs_eqn)],
+            outvars=[*eqn.outvars, *jax.tree.leaves(logs_eqn)],
             params={**eqn.params, "jaxpr": new_remat_jaxpr},
         )
         return new_eqn, logs_eqn, []
@@ -433,7 +431,7 @@ def spool_jaxpr(
 
         combine_eqn, logs_jaxpr = _apply(combine, ctx, logs_eqns)
         extra_eqns.append(combine_eqn)
-        new_outvars.extend(jax.tree_util.tree_leaves(logs_jaxpr))
+        new_outvars.extend(jax.tree.leaves(logs_jaxpr))
     else:
         logs_jaxpr = logdict({})
 

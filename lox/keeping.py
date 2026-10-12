@@ -85,9 +85,7 @@ def keep(
         out_flat = jax.core.eval_jaxpr(
             closed_jaxpr.jaxpr, closed_jaxpr.literals, *dynamic_args_flat
         )
-        out = jax.tree_util.tree_unflatten(
-            jax.tree_util.tree_structure(out_shape), out_flat
-        )
+        out = jax.tree.unflatten(jax.tree.structure(out_shape), out_flat)
         return out
 
     return wrapped

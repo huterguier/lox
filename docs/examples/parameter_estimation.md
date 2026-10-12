@@ -28,7 +28,7 @@ It does so by iterating over the individual values `x` in `xs` and updating the 
 ...             return loss_mean + loss_std
 ...
 ...         gradient = jax.grad(loss)(params)
-...         params = jax.tree_util.tree_map(lambda p, g: p - 1e-4 * g, params, gradient)
+...         params = jax.tree.map(lambda p, g: p - 1e-4 * g, params, gradient)
 ...         return params, None
 ...
 ...     (mean, std), _ = jax.lax.scan(step, params, xs)
@@ -67,7 +67,7 @@ When logging with the same key multiple times, it is important to ensure that th
 ...             return loss_mean + loss_std
 ...
 ...         gradient = jax.grad(loss)(params)
-...         params = jax.tree_util.tree_map(lambda p, g: p - 1e-4 * g, params, gradient)
+...         params = jax.tree.map(lambda p, g: p - 1e-4 * g, params, gradient)
 ...         lox.log({"mean": params[0], "std": params[1]})
 ...         return params, None
 ...
