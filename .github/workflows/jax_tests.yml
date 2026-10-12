@@ -13,12 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
-        jax-version: ["0.7.2", "0.8.3", "0.9.2", "0.10.2", "0.11.0"]
-        exclude:
-          # JAX 0.11 requires Python >= 3.12
-          - python-version: "3.11"
-            jax-version: "0.11.0"
+        python-version: ["3.12", "3.13"]
+        jax-version: ["0.7.2", "0.8.3", "0.9.2", "0.10.2", "0.11.2"]
 
     steps:
     - uses: actions/checkout@v4

@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Generic, TypeVar
 
 import jax
 
@@ -18,15 +17,12 @@ class LoggerState:
     pass
 
 
-LoggerStateT = TypeVar("LoggerStateT", bound=LoggerState)
-
-
-class Logger(Generic[LoggerStateT], ABC):
+class Logger[TState: LoggerState](ABC):
     @abstractmethod
-    def init(self, *args, **kwargs) -> LoggerStateT:
+    def init(self, *args, **kwargs) -> TState:
         pass
 
-    def log(self, state: LoggerStateT, logs: logdict) -> LoggerStateT:
+    def log(self, state: TState, logs: logdict) -> TState:
         jax.debug.callback(
             self.callback,
             state=state,
@@ -36,10 +32,10 @@ class Logger(Generic[LoggerStateT], ABC):
         return state
 
     @abstractmethod
-    def callback(self, state: LoggerStateT, logs: logdict):
+    def callback(self, state: TState, logs: logdict):
         pass
 
-    def close(self, state: LoggerStateT) -> None:
+    def close(self, state: TState) -> None:
         """Release whatever `init` acquired, after the last `log`.
 
         The default releases nothing; loggers with real teardown override it
@@ -47,11 +43,12 @@ class Logger(Generic[LoggerStateT], ABC):
         run), and `MultiLogger` fans it out — so a caller can end a run with
         one `logger.close(state)` regardless of composition.
         """
+        del state
 
     def spool(
         self,
         f: Callable,
-        state: LoggerStateT,
+        state: TState,
         argnames: str | Iterable[str] | None = None,
         tags: str | Iterable[str] | None = None,
         keep_logs: bool = False,
@@ -59,7 +56,7 @@ class Logger(Generic[LoggerStateT], ABC):
         reduce: str | None = None,
         prefix: str = "",
         unify: bool = False,
-    ) -> Callable[..., tuple[PyTree, LoggerStateT]]:
+    ) -> Callable[..., tuple[PyTree, TState]]:
         """
         Wraps a function to log its output.
 
@@ -98,11 +95,11 @@ class Logger(Generic[LoggerStateT], ABC):
     def tap(
         self,
         f: Callable,
-        state: LoggerStateT,
+        state: TState,
         argnames: str | Iterable[str] | None = None,
         tags: str | Iterable[str] | None = None,
         prefix: str = "",
-    ) -> Callable[..., LoggerStateT]:
+    ) -> Callable[..., TState]:
         def callback(logs: logdict):
             self.callback(state, logs)
 

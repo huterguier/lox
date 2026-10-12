@@ -1,8 +1,8 @@
-from typing import Any, TypeAlias
+from typing import Any
 
 import jax
 
-Array: TypeAlias = jax.Array
-Key: TypeAlias = jax.Array
+type Array = jax.Array
+type Key = jax.Array
 
-PyTree: TypeAlias = Any
+type PyTree = Any
