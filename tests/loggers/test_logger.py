@@ -55,7 +55,7 @@ class TestLogger(ABC):
     def test_spool_argnames(self, logger, key, x):
         logger_state = logger.init(key)
         collected = []
-        logger.callback = lambda logger_state, logs: collected.append(logs)
+        logger.callback = lambda state, logs: collected.append(logs)
         logger.spool(_f_ab_train_c_eval, logger_state, argnames=["a"])(x)
         keys = set()
         for logs in collected:
@@ -65,7 +65,7 @@ class TestLogger(ABC):
     def test_spool_tags(self, logger, key, x):
         logger_state = logger.init(key)
         collected = []
-        logger.callback = lambda logger_state, logs: collected.append(logs)
+        logger.callback = lambda state, logs: collected.append(logs)
         logger.spool(_f_ab_train_c_eval, logger_state, tags=["train"])(x)
         keys = set()
         for logs in collected:
@@ -75,7 +75,7 @@ class TestLogger(ABC):
     def test_tap_tags(self, logger, key, x):
         logger_state = logger.init(key)
         collected = []
-        logger.callback = lambda logger_state, logs: collected.append(logs)
+        logger.callback = lambda state, logs: collected.append(logs)
         logger.tap(_f_ab_train_c_eval, logger_state, tags=["train"])(x)
         keys = set()
         for logs in collected:

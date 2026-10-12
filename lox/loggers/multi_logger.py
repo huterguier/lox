@@ -24,14 +24,14 @@ class MultiLogger(Logger[MultiLoggerState]):
         logger_states = tuple(logger.init(*args, **kwargs) for logger in self.loggers)
         return MultiLoggerState(logger_states=logger_states)
 
-    def callback(self, logger_state: MultiLoggerState, logs: logdict):
+    def callback(self, state: MultiLoggerState, logs: logdict):
         for sub_logger, sub_logger_state in zip(
-            self.loggers, logger_state.logger_states, strict=True
+            self.loggers, state.logger_states, strict=True
         ):
             sub_logger.callback(sub_logger_state, logs)
 
-    def close(self, logger_state: MultiLoggerState) -> None:
+    def close(self, state: MultiLoggerState) -> None:
         for sub_logger, sub_logger_state in zip(
-            self.loggers, logger_state.logger_states, strict=True
+            self.loggers, state.logger_states, strict=True
         ):
             sub_logger.close(sub_logger_state)

@@ -48,7 +48,7 @@ class MatplotlibLogger(Logger[MatplotlibLoggerState]):
 
         return MatplotlibLoggerState(key=key, id=id)
 
-    def callback(self, logger_state: MatplotlibLoggerState, logs: logdict):
-        state = self.states[str(logger_state.id)]
-        state = self.plot(state, logs)
-        self.states[str(logger_state.id)] = state
+    def callback(self, state: MatplotlibLoggerState, logs: logdict):
+        plot_state = self.states[str(state.id)]
+        plot_state = self.plot(plot_state, logs)
+        self.states[str(state.id)] = plot_state

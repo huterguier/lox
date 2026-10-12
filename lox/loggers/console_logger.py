@@ -18,6 +18,7 @@ from rich.text import Text
 
 from lox.logdict import logdict
 from lox.loggers.logger import Logger, LoggerState
+from lox.utils.typing import Array, Key
 
 _VALUE_ALLOWANCE = 16
 _GUTTER = 3
@@ -53,8 +54,8 @@ Section = tuple[str, list[Row]]
 @jax.tree_util.register_dataclass
 @dataclass
 class ConsoleLoggerState(LoggerState):
-    key: jax.Array
-    id: jax.Array
+    key: Key
+    id: Array
 
 
 def _sections(keys: list[str]) -> dict[str, list[str]]:
@@ -83,8 +84,8 @@ def _flatten(data: dict, prefix: str = "") -> dict:
     return flat
 
 
-def _runs(n: int) -> str:
-    return f"{n} run" + ("s" if n != 1 else "")
+def _runs(num_runs: int) -> str:
+    return f"{num_runs} run" + ("s" if num_runs != 1 else "")
 
 
 def _number(value: float) -> str:
@@ -113,7 +114,7 @@ def _duration(seconds: float) -> str:
     return f"{seconds}s"
 
 
-def _shape(values: list[jax.Array]) -> str:
+def _shape(values: list[Array]) -> str:
     """Names the shape each run contributed, which differs from key to key.
 
     A leading axis of size 1 is dropped. ``lox.log`` gives every value such an
@@ -127,7 +128,7 @@ def _shape(values: list[jax.Array]) -> str:
     return "mixed shapes" if len(shapes) > 1 else str(shapes.pop())
 
 
-def _detail(values: list[jax.Array], show_runs: bool) -> str:
+def _detail(values: list[Array], show_runs: bool) -> str:
     """Describes a row beyond its name, or "" when there is nothing to add.
 
     A scalar's shape says nothing the value does not already say, so it is left
@@ -143,7 +144,7 @@ def _detail(values: list[jax.Array], show_runs: bool) -> str:
     return " · ".join(parts)
 
 
-def _summarise(values: list[jax.Array]) -> str:
+def _summarise(values: list[Array]) -> str:
     """Reduces a key's values across runs to a ``mean ± std`` cell.
 
     Runs are separate dict entries rather than an array axis, so the spread across
@@ -205,7 +206,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         self._lock = threading.Lock()
         self._bar_starts: dict[str, float] = {}
 
-    def init(self, key: jax.Array) -> ConsoleLoggerState:
+    def init(self, key: Key) -> ConsoleLoggerState:
         def callback(key):
             with self._lock:
                 run_id = jnp.int32(len(self.logss.keys()))
@@ -228,18 +229,18 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             self.live.start()
             atexit.register(self.close)
 
-    def close(self, logger_state: ConsoleLoggerState | None = None) -> None:
+    def close(self, state: ConsoleLoggerState | None = None) -> None:
         """Stops the live display and restores the terminal.
 
-        `logger_state` is unused (the display lives on the instance) and
-        optional, so `atexit.register(self.close)` above and existing
+        `state` is optional so that `atexit.register(self.close)` above and
         no-argument callers keep working.
         """
+        del state
         if self.live is not None:
             self.live.stop()
             self.live = None
 
-    def callback(self, logger_state: ConsoleLoggerState, logs: logdict):
+    def callback(self, state: ConsoleLoggerState, logs: logdict):
         """Records the logs and redraws the panel.
 
         Rendering is serialised: ``tap`` routes logs through an *unordered*
@@ -247,9 +248,9 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         register a run while the other iterates them to build the panel.
         """
         with self._lock:
-            self._render(logger_state, logs)
+            self._render(state, logs)
 
-    def _values(self, key: str) -> list[jax.Array]:
+    def _values(self, key: str) -> list[Array]:
         """Each run's latest array for a key, skipping runs that lack it.
 
         Complex values are reduced to their magnitude: they have no mean the
@@ -318,9 +319,9 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
             bars.append(Bar(label=key, completed=completed, total=total, eta=eta))
         return bars
 
-    def _render(self, logger_state: ConsoleLoggerState, logs: logdict):
+    def _render(self, state: ConsoleLoggerState, logs: logdict):
         """Records the logs, then redraws the panel from every run so far."""
-        run_id = str(logger_state.id)
+        run_id = str(state.id)
         self.logss.setdefault(run_id, logdict({}))
         self.logss[run_id] |= logdict(_flatten(logs))
         self._start()
@@ -376,19 +377,19 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
         available = self.console.width - _PANEL_CHROME
         return max(1, min(_MAX_COLUMNS, len(sections), available // (width + _GUTTER)))
 
-    def _pack(self, sections: list[Section], n: int) -> list[list[Section]]:
-        """Splits the sections into ``n`` columns, in order.
+    def _pack(self, sections: list[Section], num_columns: int) -> list[list[Section]]:
+        """Splits the sections into ``num_columns`` columns, in order.
 
         Filling column by column keeps sections where they would be in a single
         column, at the cost of columns that can differ in height.
         """
         heights = [len(rows) + (2 if section else 0) for section, rows in sections]
-        target = max(1, math.ceil(sum(heights) / n))
+        target = max(1, math.ceil(sum(heights) / num_columns))
         columns: list[list[Section]] = []
         current: list[Section] = []
         used = 0
         for section, height in zip(sections, heights, strict=True):
-            if current and used + height > target and len(columns) < n - 1:
+            if current and used + height > target and len(columns) < num_columns - 1:
                 columns.append(current)
                 current, used = [], 0
             current.append(section)
@@ -398,13 +399,13 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
 
     def _grid(self, sections: list[Section]) -> Table:
         """Lays the sections out side by side."""
-        n = self._columns(sections)
+        num_columns = self._columns(sections)
         grid = Table.grid(expand=True, padding=(0, _GUTTER))
-        for _ in range(n):
+        for _ in range(num_columns):
             grid.add_column(ratio=1)
 
         tables = []
-        for column in self._pack(sections, n):
+        for column in self._pack(sections, num_columns):
             table = self._new_table()
             for i, (section, rows) in enumerate(column):
                 if section:
@@ -415,7 +416,7 @@ class ConsoleLogger(Logger[ConsoleLoggerState]):
                     label = f"  {row.label}" if section else row.label
                     table.add_row(label, row.detail, row.summary, "")
             tables.append(table)
-        grid.add_row(*tables, *[""] * (n - len(tables)))
+        grid.add_row(*tables, *[""] * (num_columns - len(tables)))
         return grid
 
     def _bars(self) -> Table:

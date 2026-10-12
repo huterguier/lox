@@ -86,7 +86,7 @@ def save(
     data: dict[str, Any],
     path: StringArray | str,
     mode: str = "a",
-    key: jax.Array | None = None,
+    key: Key | None = None,
 ):
     """
     Save data to a specified path using a callback function. Each entry in the data
@@ -97,7 +97,7 @@ def save(
       path (StringArray): The path where the data will be saved.
       mode (str): The mode in which to open the file ('a' for append, 'w' for write, 'x'
           for exclusive creation).
-      key (jax.Array, optional): An optional key to differentiate data when saving.
+      key (Key, optional): An optional key to differentiate data when saving.
     """
     callback = partial(save_callback, path=path, mode=mode)
     jax.debug.callback(callback, data=data, key=key)
@@ -168,7 +168,7 @@ def load(
           data.
       argnames (str | Iterable[str], optional): Specific argument name(s) to load. If
           None, all files in the directory are loaded.
-      key (jax.Array, optional): An optional key to differentiate data when loading.
+      key (Key, optional): An optional key to differentiate data when loading.
     Returns:
         dict[str, Any]: The loaded data.
     """

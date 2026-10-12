@@ -14,7 +14,7 @@ from lox.utils.typing import Key
 @jax.tree_util.register_dataclass
 @dataclass
 class SaveLoggerState(LoggerState):
-    key: jax.Array
+    key: Key
 
 
 class SaveLogger(Logger[SaveLoggerState]):
@@ -44,5 +44,5 @@ class SaveLogger(Logger[SaveLoggerState]):
 
         return SaveLoggerState(key=key)
 
-    def callback(self, logger_state: SaveLoggerState, logs: logdict):
-        save_callback(logs, self.path, key=logger_state.key)
+    def callback(self, state: SaveLoggerState, logs: logdict):
+        save_callback(logs, self.path, key=state.key)

@@ -222,8 +222,8 @@ def spool_jaxpr(
             from jax._src import flattree as ft
 
             carry_ft, ys_ft = new_params["ft_out"].unpack()
-            n_extra = len(jax.tree.leaves(logs_scan))
-            new_params["ft_out"] = ft.pack((carry_ft, (ys_ft, ft.nones(n_extra))))
+            num_extra = len(jax.tree.leaves(logs_scan))
+            new_params["ft_out"] = ft.pack((carry_ft, (ys_ft, ft.nones(num_extra))))
 
         new_eqn = eqn.replace(
             outvars=[*eqn.outvars, *jax.tree.leaves(logs_scan)],
@@ -289,10 +289,10 @@ def spool_jaxpr(
                     fill_eqn, fill_var = _make_fill_eqn(ref_aval, ctx)
                     extra_eqns.append(fill_eqn)
                     ordered_vars.append(fill_var)
-            n_log_leaves = len(jax.tree.leaves(logs_branch))
+            num_log_leaves = len(jax.tree.leaves(logs_branch))
             func_outvars = (
-                branch.jaxpr.outvars[:-n_log_leaves]
-                if n_log_leaves
+                branch.jaxpr.outvars[:-num_log_leaves]
+                if num_log_leaves
                 else list(branch.jaxpr.outvars)
             )
             new_branch_jaxpr = branch.jaxpr.replace(

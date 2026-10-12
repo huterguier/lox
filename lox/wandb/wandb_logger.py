@@ -4,6 +4,7 @@ import jax
 
 from lox import logdict
 from lox.loggers.logger import Logger, LoggerState
+from lox.utils.typing import Key
 from lox.wandb.core import WandbRun, finish, init, log
 
 
@@ -25,12 +26,12 @@ class WandbLogger(Logger[WandbLoggerState]):
             kwargs["id"] = str(kwargs["id"])
         self.wandb_kwargs = kwargs
 
-    def init(self, key: jax.Array) -> WandbLoggerState:
+    def init(self, key: Key) -> WandbLoggerState:
         wandb_run = init(key, **self.wandb_kwargs)
         return WandbLoggerState(wandb_run=wandb_run)
 
-    def callback(self, logger_state: WandbLoggerState, logs: logdict) -> None:
-        log(logger_state.wandb_run, logs)
+    def callback(self, state: WandbLoggerState, logs: logdict) -> None:
+        log(state.wandb_run, logs)
 
-    def close(self, logger_state: WandbLoggerState) -> None:
-        finish(logger_state.wandb_run)
+    def close(self, state: WandbLoggerState) -> None:
+        finish(state.wandb_run)

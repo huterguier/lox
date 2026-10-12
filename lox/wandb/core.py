@@ -74,7 +74,10 @@ def log(run: WandbRun, logs: logdict):
         else:
             leaves = jax.tree.leaves(logs)
             if leaves:
-                assert all([len(leaf) == len(leaves[0]) for leaf in leaves])
+                lengths = [len(leaf) for leaf in leaves]
+                assert len(set(lengths)) == 1, (
+                    f"expected equal leading axes, got {lengths}"
+                )
                 for i in range(len(leaves[0])):
                     data = flatten(jax.tree.map(lambda x, i=i: x[i], logs))
                     run.log(data)
