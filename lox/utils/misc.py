@@ -85,7 +85,8 @@ def get_path(path: str, key: Key) -> str:
 
     The folder name is derived by packing the key's raw words into a single integer
     (each word shifted into its own 32-bit slot), which is a bijection -- distinct keys
-    always produce distinct folder names. For simple keys made with ``jax.random.key(n)``
+    always produce distinct folder names. For simple keys made with
+    ``jax.random.key(n)``
     (whose raw data is ``[0, n]``), this reduces to exactly ``str(n)``.
 
     Args:

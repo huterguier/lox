@@ -58,7 +58,8 @@ autodoc_default_options = {
 def string_role(name, rawtext, text, lineno, inliner, options=None, content=None):
     node = nodes.raw(
         "",
-        f'<code class="docutils highlight-default literal notranslate"><span class="highlight"><span class="s2">"{text}"</span></span></code>',
+        '<code class="docutils highlight-default literal notranslate">'
+        f'<span class="highlight"><span class="s2">"{text}"</span></span></code>',
         format="html",
     )
     return [node], []

@@ -25,7 +25,8 @@ def log(data: dict[str, Any], tags: Iterable[str] = ()) -> logdict:
         logdict: A logdict object containing the logged data.
 
     Examples:
-        By default lox.log complies with the pure functional programming paradigm of JAX,
+        By default lox.log complies with the pure functional programming paradigm of
+        JAX,
         meaning it does not have side effects and does not mutate the state.
 
         >>> def f_log(x):
@@ -34,7 +35,8 @@ def log(data: dict[str, Any], tags: Iterable[str] = ()) -> logdict:
         >>> f_log(1.0)
         2.0
 
-        In order to actually retrieve or use the logged data, we need to apply a function
+        In order to actually retrieve or use the logged data, we need to apply a
+        function
         transformation such as :attr:`spool` or :attr:`tap`.
 
     """

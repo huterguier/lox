@@ -20,7 +20,8 @@ def strip(
 ) -> Callable:
     """
     Strips all logging operations from the given function by manipulating its Jaxpr.
-    This is useful when you remove logging statements from parts of you code or want to quickly disable logging for performance reasons.
+    This is useful when you remove logging statements from parts of you code or want to
+    quickly disable logging for performance reasons.
 
     Args:
       fun: The function from which to strip logging operations.
@@ -42,7 +43,8 @@ def strip(
         >>> print(logs)
         {}
 
-        It is possible to specify which logged arguments to strip by providing their names. In this example we only strip the logged argument "x", while "y" is kept.
+        It is possible to specify which logged arguments to strip by providing their
+        names. In this example we only strip the logged argument "x", while "y" is kept.
 
         >>> def f(x):
         >>>     y = x + 1.0
@@ -53,7 +55,8 @@ def strip(
         {"y": 2.0}
 
         It is also possible to strip logged arguments based on their tags.
-        All logged arguments with any of the specified tags will be stripped from the function.
+        All logged arguments with any of the specified tags will be stripped from the
+        function.
 
         >>> def f(x):
         >>>     y = x + 1.0

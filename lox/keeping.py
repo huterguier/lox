@@ -44,7 +44,8 @@ def keep(
         >>> print(logs)
         {"x": 1.0}
 
-        It is possible to specify which logged arguments to keep by providing their names.
+        It is possible to specify which logged arguments to keep by providing their
+        names.
         In this example only the logged argument "x" is kept, while "y" is stripped.
 
         >>> def f(x):
@@ -56,7 +57,8 @@ def keep(
         {"x": 1.0}
 
         It is also possible to keep logged arguments based on their tags.
-        All logged arguments with any of the specified tags will be kept, the rest stripped.
+        All logged arguments with any of the specified tags will be kept, the rest
+        stripped.
 
         >>> def f(x):
         >>>     y = x + 1.0

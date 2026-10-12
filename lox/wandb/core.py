@@ -17,7 +17,8 @@ runs_wandb = {}
 class WandbRun:
     """
     A class representing a run in Weights & Biases (wandb).
-    This class is used to encapsulate the run ID. All other metadata is obtained by reconnecting to the existing run and retrieving the metadata from there.
+    This class is used to encapsulate the run ID. All other metadata is obtained by
+    reconnecting to the existing run and retrieving the metadata from there.
 
     Attributes:
         id (Any): The unique identifier for the run in wandb.

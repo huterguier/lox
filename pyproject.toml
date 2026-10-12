@@ -65,7 +65,6 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B"]
-ignore = ["E501"]
 
 [tool.setuptools.packages.find]
 include = ["lox", "lox.*"]

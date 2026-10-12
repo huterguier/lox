@@ -95,7 +95,7 @@ class logdict(dict[str, Any]):
         return self._SliceProxy(self)
 
     def filter(self, predicate: Callable[[str, Any], bool]) -> "logdict":
-        """Returns a new logdict containing only items where ``predicate(key, value)`` is True."""
+        """Returns the items where ``predicate(key, value)`` holds."""
         return logdict({k: v for k, v in self.items() if predicate(k, v)})
 
     def prefix(self, prefix: str) -> "logdict":
