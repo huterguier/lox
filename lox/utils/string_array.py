@@ -13,11 +13,7 @@ DEFAULT_PADDING = np.uint8(255)
 @dataclass
 class StringArray:
     chars: Array
-    padding: Array
-
-    def __init__(self, chars: Array, padding: Array = DEFAULT_PADDING):
-        self.chars = chars
-        self.padding = padding
+    padding: Array = DEFAULT_PADDING
 
     def __str__(self):
         return "".join(chr(c) for c in self.chars if c != self.padding)

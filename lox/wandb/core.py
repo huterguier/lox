@@ -26,15 +26,6 @@ class WandbRun:
 
     id: StringArray
 
-    def __init__(self, id: StringArray):
-        """
-        Initializes the Run instance with the given run ID.
-
-        Args:
-            id (Any): The unique identifier for the run in wandb.
-        """
-        self.id = id
-
 
 def log(run: WandbRun, logs: logdict):
     """

@@ -17,14 +17,14 @@ class SaveLoggerState(LoggerState):
     key: Key
 
 
+@dataclass(frozen=True)
 class SaveLogger(Logger[SaveLoggerState]):
     """
     Logger for saving data to a specified path using JAX's experimental IO callback.
     """
 
-    def __init__(self, path: str, overwrite: bool = False):
-        self.path = path
-        self.overwrite = overwrite
+    path: str
+    overwrite: bool = False
 
     def init(self, key: Key) -> SaveLoggerState:
         def callback(key):

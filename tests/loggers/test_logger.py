@@ -52,30 +52,36 @@ class TestLogger(ABC):
         logger_state = logger.log(logger_state, logs)
         logger.close(logger_state)
 
-    def test_spool_argnames(self, logger, key, x):
+    def test_spool_argnames(self, logger, key, x, monkeypatch):
         logger_state = logger.init(key)
         collected = []
-        logger.callback = lambda state, logs: collected.append(logs)
+        monkeypatch.setattr(
+            type(logger), "callback", lambda self, state, logs: collected.append(logs)
+        )
         logger.spool(_f_ab_train_c_eval, logger_state, argnames=["a"])(x)
         keys = set()
         for logs in collected:
             keys |= set(logs.keys())
         assert keys == {"a"}
 
-    def test_spool_tags(self, logger, key, x):
+    def test_spool_tags(self, logger, key, x, monkeypatch):
         logger_state = logger.init(key)
         collected = []
-        logger.callback = lambda state, logs: collected.append(logs)
+        monkeypatch.setattr(
+            type(logger), "callback", lambda self, state, logs: collected.append(logs)
+        )
         logger.spool(_f_ab_train_c_eval, logger_state, tags=["train"])(x)
         keys = set()
         for logs in collected:
             keys |= set(logs.keys())
         assert keys == {"a", "b"}
 
-    def test_tap_tags(self, logger, key, x):
+    def test_tap_tags(self, logger, key, x, monkeypatch):
         logger_state = logger.init(key)
         collected = []
-        logger.callback = lambda state, logs: collected.append(logs)
+        monkeypatch.setattr(
+            type(logger), "callback", lambda self, state, logs: collected.append(logs)
+        )
         logger.tap(_f_ab_train_c_eval, logger_state, tags=["train"])(x)
         keys = set()
         for logs in collected:
