@@ -1,6 +1,3 @@
-import contextlib
-import io
-
 import jax
 import jax.numpy as jnp
 import pytest
@@ -102,9 +99,8 @@ def test_spool_argnames(f, expected_keys, x):
 
 
 def test_spool_while_warns(x):
-    with contextlib.redirect_stdout(io.StringIO()) as out:
+    with pytest.warns(UserWarning, match="while loops"):
         _, logs = lox.spool(f_while)(x)
-    assert "Warning" in out.getvalue()
     assert len(logs) == 0
 
 
@@ -143,6 +139,15 @@ def test_spool_tags():
     _, logs = lox.spool(f, tags=["train"])(x)
     assert "a" in logs
     assert "b" not in logs
+
+
+def test_spool_log_bare_string_tag():
+    def f(x):
+        lox.log({"a": x}, tags="train")
+        return x
+
+    _, logs = lox.spool(f, tags=["train"])(jnp.ones(4))
+    assert set(logs.keys()) == {"a"}
 
 
 def _f_ab_train_c_eval(x):
@@ -198,3 +203,15 @@ def test_spool_scan_variants(f, shape, expected_shapes):
     y_spooled, logs = lox.spool(f)(x)
     assert jax.tree.all(jax.tree.map(jnp.allclose, y_spooled, f(x)))
     assert {k: tuple(v.shape) for k, v in logs.items()} == expected_shapes
+
+
+def test_spool_jit_with_consts():
+    c = jnp.arange(4.0)
+
+    @jax.jit
+    def f(x):
+        lox.log({"a": x + c})
+        return x
+
+    _, logs = lox.spool(lambda x: f(x))(1.0)
+    assert jnp.allclose(logs["a"], 1.0 + c)

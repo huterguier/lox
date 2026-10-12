@@ -13,13 +13,13 @@ lox_p = core.Primitive("lox")
 lox_p.multiple_results = True
 
 
-def log(data: dict[str, Any], tags: Iterable[str] = ()) -> logdict:
+def log(data: dict[str, Any], tags: str | Iterable[str] = ()) -> logdict:
     """
     Fundamental logging primitive for Lox.
 
     Args:
         data: A dictionary containing the data to be logged.
-        tags: An iterable of strings representing tags associated with the log.
+        tags: A tag or an iterable of tags associated with the log.
 
     Returns:
         logdict: A logdict object containing the logged data.
@@ -40,6 +40,8 @@ def log(data: dict[str, Any], tags: Iterable[str] = ()) -> logdict:
         transformation such as :attr:`spool` or :attr:`tap`.
 
     """
+    if isinstance(tags, str):
+        tags = (tags,)
     data_logdict = jax.tree.map(lambda x: jnp.expand_dims(x, 0), data)
     logs = logdict(data_logdict)
     logs_flat, structure = jax.tree.flatten(logs)

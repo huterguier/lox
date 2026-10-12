@@ -85,3 +85,22 @@ def test_tap_bare_string_argnames_is_exact_match():
 def test_tap_bare_string_tags_is_exact_match():
     logs = _collect(_f_ab_train_c_eval, tags="train")
     assert set(logs.keys()) == {"a", "b"}
+
+
+def test_tap_tags_and_prefix_inside_jit():
+    logs = _collect(
+        lambda x: jax.jit(_f_ab_train_c_eval)(x), tags=["train"], prefix="p/"
+    )
+    assert set(logs.keys()) == {"p/a", "p/b"}
+
+
+def test_tap_jit_with_consts():
+    c = jnp.arange(4.0)
+
+    @jax.jit
+    def f(x):
+        lox.log({"a": x + c})
+        return x
+
+    logs = _collect(lambda x: f(x))
+    assert jnp.allclose(logs["a"], 1.0 + c)

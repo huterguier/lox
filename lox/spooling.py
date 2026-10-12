@@ -1,4 +1,5 @@
-from collections.abc import Callable, Hashable, Iterable
+import warnings
+from collections.abc import Callable, Iterable
 from functools import wraps
 from typing import Any
 
@@ -16,8 +17,6 @@ from lox.logdict import logdict
 from lox.primitive import lox_p
 from lox.stripping import strip_jaxpr
 from lox.utils import flatten, is_hashable, select_logs
-
-AxisName = Hashable
 
 
 def spool(
@@ -143,7 +142,7 @@ def _apply(f: Callable, ctx, *invars: Any) -> tuple[JaxprEqn, Any]:
     closed_jaxpr_f, shape_f = jax.make_jaxpr(f, return_shape=True)(*invars_avals)
     structure_f = jax.tree.structure(shape_f)
     jaxpr_f = closed_jaxpr_f.jaxpr
-    const_literals = [Literal(c, jax.core.get_aval(c)) for c in closed_jaxpr_f.consts]
+    const_literals = [Literal(c, jax.typeof(c)) for c in closed_jaxpr_f.consts]
     call_jaxpr = jaxpr_f.replace(
         constvars=[],
         invars=[*jaxpr_f.constvars, *jaxpr_f.invars],
@@ -326,9 +325,10 @@ def spool_jaxpr(
             eqn.params["body_jaxpr"].jaxpr, argnames, tags, unify
         )
         if logs_cond or logs_body:
-            print(
-                "Warning: Spooling for while loops is not supported "
-                "due to non-static length."
+            warnings.warn(
+                "Spooling for while loops is not supported due to non-static "
+                "length; their logs are dropped.",
+                stacklevel=2,
             )
         return eqn, logdict({}), []
 
@@ -341,9 +341,7 @@ def spool_jaxpr(
             logs_eqn = jax.tree.map(
                 lambda x: Var(aval=ShapedArray(x.aval.shape, x.aval.dtype)), logs_jaxpr
             )
-            const_literals = [
-                Literal(c, jax.core.get_aval(c)) for c in inner_closed.consts
-            ]
+            const_literals = [Literal(c, jax.typeof(c)) for c in inner_closed.consts]
             call_jaxpr = new_inner_jaxpr.replace(
                 constvars=[],
                 invars=[*new_inner_jaxpr.constvars, *new_inner_jaxpr.invars],

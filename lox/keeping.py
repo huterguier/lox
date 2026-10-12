@@ -1,5 +1,5 @@
 import functools
-from collections.abc import Callable, Hashable, Iterable
+from collections.abc import Callable, Iterable
 
 import jax
 import jax._src.ad_checkpoint
@@ -9,8 +9,6 @@ from jax.extend.core import ClosedJaxpr, Jaxpr
 
 from lox.primitive import lox_p
 from lox.utils import flatten, is_hashable, select_logs
-
-AxisName = Hashable
 
 
 def keep(

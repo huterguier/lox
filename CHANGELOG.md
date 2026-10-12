@@ -6,6 +6,18 @@ version carries breaking changes.
 
 ## [Unreleased]
 
+### Changed
+- `spool` reports dropped `while_loop` logs with `warnings.warn` (a `UserWarning`) instead of
+  printing to stdout.
+
+### Fixed
+- `tap` applies `tags` and `prefix` to logs inside `jit`, `scan`, `cond`, `while_loop`, and
+  `remat`; they were previously ignored below the top level.
+- `tap` and `spool` no longer crash on a jitted function that closes over arrays. `tap` dropped
+  the inner jaxpr's constants, and both used `jax.core.get_aval`, which JAX 0.10 removed.
+- `lox.log(..., tags="train")` treats a bare string as one tag instead of splitting it into
+  characters.
+
 ## [0.4.0] - 2026-10-12
 
 ### Added

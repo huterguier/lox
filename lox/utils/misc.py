@@ -2,11 +2,9 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 import jax
-from jax import Array as Key
 
 from lox.logdict import logdict
-
-# from lox.utils.typing import Key
+from lox.utils.typing import Key
 
 
 def is_hashable(arg):
