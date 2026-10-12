@@ -6,6 +6,8 @@ version carries breaking changes.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-12
+
 ### Changed
 - `spool` reports dropped `while_loop` logs with `warnings.warn` (a `UserWarning`) instead of
   printing to stdout.
