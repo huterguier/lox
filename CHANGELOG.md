@@ -6,6 +6,33 @@ version carries breaking changes.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-12
+
+### Added
+- `Logger.close(state)` releases whatever `init` acquired. The default does nothing;
+  `ConsoleLogger` stops its live display, `WandbLogger` finishes its run, and `MultiLogger`
+  fans it out, so a run ends with one `logger.close(state)` regardless of composition.
+- `ConsoleLogger` progress bars show an ETA, extrapolated from the average rate since the bar's
+  first update.
+
+### Changed
+- **Breaking:** Requires Python 3.12. JAX 0.11 already requires it, so only users pinned to
+  JAX ≤ 0.10 on Python 3.11 are affected. CI now runs Python 3.12/3.13 against JAX 0.7.2–0.11.2.
+- **Breaking:** The logger-state parameter of `Logger.init`/`log`/`callback`/`close`/`spool`/`tap`
+  is renamed from `logger_state` to `state`. Positional calls are unaffected; keyword calls and
+  `callback` overrides that name the parameter `logger_state` must be updated, since `Logger.log`
+  passes it to `callback` by keyword.
+- **Breaking:** `SaveLogger` is a frozen dataclass, so its attributes can no longer be reassigned
+  after construction. `SaveLogger(path, overwrite=False)` is unchanged.
+- `WandbLogger` converts a non-string `id` to `str` before passing it to `wandb.init`, which rejects
+  ints (as produced e.g. by a SLURM job id resolved through OmegaConf).
+
+### Fixed
+- `WandbLogger` can be instantiated again. It overrode `log` and `tap` instead of implementing the
+  abstract `callback`, so construction raised `TypeError`.
+- Importing `lox.utils.string_array` no longer creates a JAX array at import time;
+  `DEFAULT_PADDING` is a NumPy scalar.
+
 ## [0.3.2] - 2026-07-30
 
 ### Added
